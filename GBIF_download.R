@@ -184,11 +184,10 @@ nlevels(NorPlant_buff@data$species)   # 3668 - seems a litlle high. Likely due t
 ## 2.1.1 AVAILABLE TRAIT DATA ####
 ##----------------------------####
 # Import the species names from the "AllTraitsAvailability.csv" (I've collected all three sheets in one file)
-ATA <- read.csv2("AllTraitsAvailability.csv", header=TRUE)      # (csv2 as we're using Norwegian pc's)
-str(ATA)
+ATA2 <- read.csv2("AllTraitsAvailability.csv", header=TRUE)      # (csv2 as we're using Norwegian pc's)
+str(ATA2)
 
 # Check if all of our species exist in the GBIF data --> return species names not in the occurrence data
-ATA$Species[!ATA$Species %in% NorPlant_buff@data$species]   # 127 species - some are due to errors in the names. 
                                                             # The list is checked manually to find the errors and synonyms.
                                                             # The names are compared with the 'original_name' and synonym_tr8'
                                                             # column from the 'TRAITSavailable&lacking.xlsx', and compared
@@ -199,153 +198,133 @@ ATA$Species[!ATA$Species %in% NorPlant_buff@data$species]   # 127 species - some
                                                             # instead, I checked through Kew Gardens' 'Plants of the World' and 'name_backbone()
                                                                   #library(Taxonstand)
                                                                   #TPLck("xx xx")
+# It turns out, that the columns "genus" and "specificEpithet" are not always gathered directly to make up the species name
+# This is potentially where we encounter some issues. Therefore, I do he sorting a bit more cumbersome,
+# but hopefully we'll get the correct species then
+NorPlant_buff@data$species_construct <- paste(NorPlant_buff@data$genus, NorPlant_buff@data$specificEpithet,
+                                              sep = " ", collapse = NULL)
 
-# Rename the ATA data set where appropriate (to make the names match GBIF):
-{ATA$Species_syn <- as.character(ATA$Species)
-ATA$Species_syn[ATA$Species_syn == 'Agrostis arundinacea'] <- 'Calamagrostis arundinacea'
-ATA$Species_syn[ATA$Species_syn == 'Agrostis canescens'] <- 'Calamagrostis canescens'
-ATA$Species_syn[ATA$Species_syn == 'Agrostis chalybaea'] <- 'Calamagrostis chalybaea'      # OBS! This needs to be validated
-ATA$Species_syn[ATA$Species_syn == 'Agrostis epigejos'] <- 'Calamagrostis epigejos'        # OBS! Calamagrostis epigeios also a synonym
-ATA$Species_syn[ATA$Species_syn == 'Agrostis lapponica'] <- 'Calamagrostis lapponica'
-ATA$Species_syn[ATA$Species_syn == 'Agrostis neglecta'] <- 'Agrostis stolonifera'       
-ATA$Species_syn[ATA$Species_syn == 'Agrostis phragmitoides'] <- 'Agrostis phragmitoides'   # OBS! No synonyms found
-ATA$Species_syn[ATA$Species_syn == 'Anisantha sterilis'] <- 'Bromus sterilis'
-ATA$Species_syn[ATA$Species_syn == 'Antennaria lapponica'] <- 'Antennaria alpina'
-ATA$Species_syn[ATA$Species_syn == 'Antennaria villifera'] <- 'Antennaria lanata'
-ATA$Species_syn[ATA$Species_syn == 'Arabidopsis petraea'] <- 'Arabidopsis lyrata'          # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Arctous alpinus'] <- 'Arctostaphylos alpinus'          # OBS! Needs validation --> 'Arctous alpina' found
-ATA$Species_syn[ATA$Species_syn == 'Aristavena setacea'] <- 'Deschampsia setacea'
-ATA$Species_syn[ATA$Species_syn == 'Atriplex hastata'] <- 'Atriplex prostrata calotheca'   # OBS! Subspecies not found
-ATA$Species_syn[ATA$Species_syn == 'Atriplex lapponica'] <- 'Atriplex nudicaulis'          # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Cardamine dentata'] <- 'Cardamine pratensis'
-ATA$Species_syn[ATA$Species_syn == 'Carex \xd7stenolepis'] <- 'Carex stenolepis'
-ATA$Species_syn[ATA$Species_syn == 'Carex \xd7vacillans'] <- 'Carex vacillans'
-ATA$Species_syn[ATA$Species_syn == 'Carex jemtlandica'] <- 'Carex lepidocarpa'             # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Centaurea x moncktonii'] <- 'Centaurea moncktonii'
-ATA$Species_syn[ATA$Species_syn == 'Coptidium lapponicum'] <- 'Ranunculus lapponicus'      # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Crataegus kyrtostyla'] <- 'Crataegus kyrtostyla'       # Correct name in all sources
-ATA$Species_syn[ATA$Species_syn == 'Deschampsia alpina'] <- 'Deschampsia cespitosa'        # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Diphasiastrum \xd7zeilleri'] <- 'Diphasiastrum zeilleri'
-ATA$Species_syn[ATA$Species_syn == 'Draba dovrensis'] <- 'Draba glabella'                  # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Drymochloa sylvatica'] <- 'Festuca altissima'          # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Elatine orthosperma'] <- 'Elatine hydropiper'          # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Eleogiton fluitans'] <- 'Isolepis fluitans'            # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Eriophorum \xd7medium'] <- 'Eriophorum medium'
-ATA$Species_syn[ATA$Species_syn == 'Hieracium argillaceum'] <- 'Hieracium lachenalii'      # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Hieracium atratum '] <- 'Hieracium atratum'            # 'space' in the end
-ATA$Species_syn[ATA$Species_syn == 'Hieracium bifidum '] <- 'Hieracium bifidum'            
-ATA$Species_syn[ATA$Species_syn == 'Hieracium caesium '] <- 'Hieracium caesium'
-ATA$Species_syn[ATA$Species_syn == 'Hieracium crocatum '] <- 'Hieracium crocatum'
-ATA$Species_syn[ATA$Species_syn == 'Hieracium diaphanum '] <- 'Hieracium diaphanum'
-ATA$Species_syn[ATA$Species_syn == 'Hieracium dovrense '] <- 'Hieracium dovrense'
-ATA$Species_syn[ATA$Species_syn == 'Hieracium epimedium '] <- 'Hieracium froelichianum'    # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Hieracium murorum '] <- 'Hieracium murorum'
-ATA$Species_syn[ATA$Species_syn == 'Hieracium nigrescens '] <- 'Hieracium nigrescens'
-ATA$Species_syn[ATA$Species_syn == 'Hieracium ramosum '] <- 'Hieracium ramosum'
-ATA$Species_syn[ATA$Species_syn == 'Hierochloe hirta'] <- 'Anthoxanthum nitens'            # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Huperzia arctica'] <- 'Huperzia appressa'              # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Mentha \xd7verticillata'] <- 'Mentha verticillata'
-ATA$Species_syn[ATA$Species_syn == 'Micranthes hieraciifolia'] <- 'Micranthes hieracifolia'
-ATA$Species_syn[ATA$Species_syn == 'Mulgedium sibiricum'] <- 'Lactuca sibirica'            # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Nigritella nigra'] <- 'Gymnadenia nigra'               # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Papaver dahlianum'] <- 'Papaver radicatum'             # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Platanthera montana'] <- 'Platanthera chlorantha'      # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Poa \xd7jemtlandica'] <- 'Poa jemtlandica'
-ATA$Species_syn[ATA$Species_syn == 'Polygonum raii'] <- 'Polygonum oxyspermum'             # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Pseudorchis straminea'] <- 'Pseudorchis albida'        # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Puccinellia capillaris'] <- 'Puccinellia distans'      # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Pyrola norvegica'] <- 'Pyrola rotundifolia'            # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Ranunculus auricomus '] <- 'Ranunculus auricomus'
-ATA$Species_syn[ATA$Species_syn == 'Ranunculus subborealis'] <- 'Ranunculus propinquus'    # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Salicornia pojarkovae'] <- 'Salicornia procumbens'     # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Salix \xd7arctogena'] <- 'Salix arctogena'
-ATA$Species_syn[ATA$Species_syn == 'Sedum rupestre'] <- 'Petrosedum rupestre'              # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Silene wahlbergella'] <- 'Silene uralensis'            # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Sorbus norvegica'] <- 'Sorbus obtusifolia'             # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Stellaria fennica'] <- 'Stellaria fennica'             # OBS! Multiple synonyms, both in GBIF data set (P. palustris and longipes)
-ATA$Species_syn[ATA$Species_syn == 'Taraxacum officinale '] <- 'Taraxacum officinale'
-ATA$Species_syn[ATA$Species_syn == 'Thalictrum kemense'] <- 'Thalictrum minus'             # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Valeriana sambucifolia'] <- 'Valeriana excelsa'        # OBS! Multiple synonyms, both in GBIF data set (V. excelsa and officinalis)
-ATA$Species_syn[ATA$Species_syn == 'Carex concolor'] <- 'Carex aquatilis'                  # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Cirsium acaulon'] <- 'Cirsium acaule'
-ATA$Species_syn[ATA$Species_syn == 'Eleocharis macrostachya'] <- 'Eleocharis macrostachya'   # Correct name in all databases
-ATA$Species_syn[ATA$Species_syn == 'Stellaria alsine var. alsine'] <- 'Stellaria alsine'
-ATA$Species_syn[ATA$Species_syn == 'Carex paupercula'] <- 'Carex magellanica'
-ATA$Species_syn[ATA$Species_syn == 'Zostera noltii '] <- 'Zostera noltii'
-ATA$Species_syn[ATA$Species_syn == 'Botrychium multifidum'] <- 'Sceptridium multifidum'
-ATA$Species_syn[ATA$Species_syn == 'Hymenophyllum tunbrigense'] <- 'Hymenophyllum tunbrigense'   # Correct name in all databases
-ATA$Species_syn[ATA$Species_syn == 'Lavatera arborea'] <- 'Malva arborea'
-ATA$Species_syn[ATA$Species_syn == 'Mycelis muralis'] <- 'Lactuca muralis'
-ATA$Species_syn[ATA$Species_syn == 'Listera cordata'] <- 'Neottia cordata'
-ATA$Species_syn[ATA$Species_syn == 'Minuartia stricta'] <- 'Sabulina stricta'
-ATA$Species_syn[ATA$Species_syn == 'Coeloglossum viride'] <- 'Dactylorhiza viridis'
-ATA$Species_syn[ATA$Species_syn == 'Listera ovata'] <- 'Neottia ovata'
-ATA$Species_syn[ATA$Species_syn == 'Minuartia rubella'] <- 'Sabulina rubella'
-ATA$Species_syn[ATA$Species_syn == 'Ononis arvensis'] <- 'Ononis spinosa'                  # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Elytrigia juncea'] <- 'Thinopyrum junceum'             # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Atocion rupestre'] <- 'Heliosperma pusillum'           # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Acinos arvensis'] <- 'Clinopodium acinos'
-ATA$Species_syn[ATA$Species_syn == 'Glaux maritima'] <- 'Lysimachia maritima'
-ATA$Species_syn[ATA$Species_syn == 'Polystichum setiferum'] <- 'Polystichum setiferum'     # Correct name in all databases
-ATA$Species_syn[ATA$Species_syn == 'Sagina subulata'] <- 'Sagina subulata'                 # No synonym found in dataset
-ATA$Species_syn[ATA$Species_syn == 'Stellaria uliginosa'] <- 'Stellaria uliginosa'         # OBS! Stellaria alsine recognized synonym, but defined as another species too
-ATA$Species_syn[ATA$Species_syn == 'Hierochloe alpina'] <- 'Anthoxanthum monticola'        # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Minuartia biflora'] <- 'Cherleria biflora'             # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Chamaepericlymenum suecicum'] <- 'Cornus suecica'
-ATA$Species_syn[ATA$Species_syn == 'Schedonorus giganteus'] <- 'Lolium giganteum'          # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Blysmopsis rufa'] <- 'Blysmus rufus'
-ATA$Species_syn[ATA$Species_syn == 'Chamerion angustifolium'] <- 'Epilobium angustifolium'
-ATA$Species_syn[ATA$Species_syn == 'Kobresia simpliciuscula'] <- 'Carex simpliciuscula'
-ATA$Species_syn[ATA$Species_syn == 'Salicornia dolichostachya'] <- 'Salicornia procumbens' # OBS! Multiple synonyms (S. oliveri)
-ATA$Species_syn[ATA$Species_syn == 'Calamistrum globuliferum'] <- 'Pilularia globulifera'  # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Ligusticum scothicum'] <- 'Ligusticum scoticum'
-ATA$Species_syn[ATA$Species_syn == 'Viscaria alpina'] <- 'Silene suecica'                  # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Monotropa hypopitys'] <- 'Hypopitys monotropa'
-ATA$Species_syn[ATA$Species_syn == 'Ophioglossum vulgatum'] <- 'Ophioglossum vulgatum'     # Correct name in all databases
-ATA$Species_syn[ATA$Species_syn == 'Potentilla tabernaemontani'] <- 'Potentilla verna'     # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Luzula nivalis'] <- 'Luzula arctica' 
-ATA$Species_syn[ATA$Species_syn == 'Lycopodium annotinum'] <- 'Spinulum annotinum'
-ATA$Species_syn[ATA$Species_syn == 'Bromopsis benekenii'] <- 'Bromus benekenii'
-ATA$Species_syn[ATA$Species_syn == 'Carex viridula'] <- 'Carex oederi'                     # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Kobresia myosuroides'] <- 'Carex myosuroides'
-ATA$Species_syn[ATA$Species_syn == 'Lappula deflexa'] <- 'Hackelia deflexa'
-ATA$Species_syn[ATA$Species_syn == 'Seseli libanotis'] <- 'Libanotis pyrenaica'            # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Ranunculus confervoides'] <- 'Ranunculus trichophyllus'  # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Hierochloe odorata'] <- 'Hierochloe odorata'           # OBS!Anthoxanthum nitens is also synonym for Hierochloe hirta
-ATA$Species_syn[ATA$Species_syn == 'Anagallis minima'] <- 'Lysimachia minima'
-ATA$Species_syn[ATA$Species_syn == 'Callitriche hamulata'] <- 'Callitriche brutia'         # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Littorella uniflora'] <- 'Littorella uniflora'         # Correct name, no synonym in GBIF
-ATA$Species_syn[ATA$Species_syn == 'Bromopsis ramosa'] <- 'Bromus ramosus'
-ATA$Species_syn[ATA$Species_syn == 'Avenula pratensis'] <- 'Helictochloa pratensis'
-ATA$Species_syn[ATA$Species_syn == 'Tetragonolobus maritimus'] <- 'Lotus maritimus'
-ATA$Species_syn[ATA$Species_syn == 'Lychnis flos-cuculi'] <- 'Silene flos-cuculi'
-ATA$Species_syn[ATA$Species_syn == 'Primula vulgaris'] <- 'Primula acaulis'
-ATA$Species_syn[ATA$Species_syn == 'Ranunculus ficaria'] <- 'Ficaria verna'
-ATA$Species_syn[ATA$Species_syn == 'Rumex alpestris'] <- 'Rumex scutatus'
-ATA$Species_syn[ATA$Species_syn == 'Anisantha tectorum'] <- 'Bromus tectorum'
-ATA$Species_syn[ATA$Species_syn == 'Elytrigia repens'] <- 'Elymus repens'
-ATA$Species_syn[ATA$Species_syn == 'Ligustrum vulgare'] <- 'Syringa vulgaris'              # OBS! Synonym in databases not identical
-ATA$Species_syn[ATA$Species_syn == 'Potentilla anserina'] <- 'Argentina anserina'
-ATA$Species_syn[ATA$Species_syn == 'Schedonorus arundinaceus'] <- 'Scolochloa festucacea'  # OBS! Potentially doubtful
-ATA$Species_syn[ATA$Species_syn == 'Oxycoccus palustris'] <- 'Vaccinium oxycoccos'
-ATA$Species_syn[ATA$Species_syn == 'Helianthemum nummularium'] <- 'Helianthemum nummularium'   # OBS! No synonum found
+ATA2$Species[!(ATA2$Species %in% NorPlant_buff@data$species |
+                 ATA2$Species %in% NorPlant_buff@data$species_construct)]  # Fewer species missing (86) - this might be a better way to go then
+
+# Rename where needed - check GBIF, ThePlantList and Artsnavnebase
+{ATA2$Species_syn <- as.character(ATA2$Species)
+  ATA2$Species_syn[ATA2$Species_syn == 'Acinos arvensis'] <- 'Clinopodium acinos'
+  ATA2$Species_syn[ATA2$Species_syn == 'Agrostis arundinacea'] <- 'Calamagrostis arundinacea'
+  ATA2$Species_syn[ATA2$Species_syn == 'Agrostis canescens'] <- 'Calamagrostis canescens'
+  ATA2$Species_syn[ATA2$Species_syn == 'Agrostis chalybaea'] <- 'Calamagrostis chalybaea'         # OBS! This potentially needs to be validated
+  ATA2$Species_syn[ATA2$Species_syn == 'Agrostis epigejos'] <- 'Calamagrostis epigejos'        
+  ATA2$Species_syn[ATA2$Species_syn == 'Agrostis lapponica'] <- 'Calamagrostis lapponica'         # From 'TRAITSavailable&lacking.xlsx'
+  ATA2$Species_syn[ATA2$Species_syn == 'Agrostis neglecta'] <- 'Agrostis stolonifera'             # From 'TRAITSavailable&lacking.xlsx'
+  ATA2$Species_syn[ATA2$Species_syn == 'Agrostis phragmitoides'] <- 'Calamagrostis phragmitoides'  # OBS! No synonyms found, This potentially needs to be validated
+  ATA2$Species_syn[ATA2$Species_syn == 'Anagallis minima'] <- 'Lysimachia minima'
+  ATA2$Species_syn[ATA2$Species_syn == 'Anisantha sterilis'] <- 'Bromus sterilis'
+  ATA2$Species_syn[ATA2$Species_syn == 'Antennaria lapponica'] <- 'Antennaria alpina'
+  ATA2$Species_syn[ATA2$Species_syn == 'Arctous alpinus'] <- 'Arctostaphylos alpinus'          
+  ATA2$Species_syn[ATA2$Species_syn == 'Aristavena setacea'] <- 'Deschampsia setacea'
+  ATA2$Species_syn[ATA2$Species_syn == 'Carex \xd7stenolepis'] <- 'Carex stenolepis'
+  ATA2$Species_syn[ATA2$Species_syn == 'Carex \xd7vacillans'] <- 'Carex vacillans'
+  ATA2$Species_syn[ATA2$Species_syn == 'Centaurea x moncktonii'] <- 'Centaurea moncktonii'
+  ATA2$Species_syn[ATA2$Species_syn == 'Coptidium lapponicum'] <- 'Ranunculus lapponicus'      
+  ATA2$Species_syn[ATA2$Species_syn == 'Diphasiastrum \xd7zeilleri'] <- 'Diphasiastrum zeilleri'
+  ATA2$Species_syn[ATA2$Species_syn == 'Drymochloa sylvatica'] <- 'Festuca altissima'          
+  ATA2$Species_syn[ATA2$Species_syn == 'Eleogiton fluitans'] <- 'Isolepis fluitans'            
+  ATA2$Species_syn[ATA2$Species_syn == 'Eriophorum \xd7medium'] <- 'Eriophorum medium'
+  ATA2$Species_syn[ATA2$Species_syn == 'Hieracium atratum '] <- 'Hieracium atratum'            # 'space' in the end
+  ATA2$Species_syn[ATA2$Species_syn == 'Hieracium bifidum '] <- 'Hieracium bifidum'            
+  ATA2$Species_syn[ATA2$Species_syn == 'Hieracium caesium '] <- 'Hieracium caesium'
+  ATA2$Species_syn[ATA2$Species_syn == 'Hieracium crocatum '] <- 'Hieracium crocatum'
+  ATA2$Species_syn[ATA2$Species_syn == 'Hieracium diaphanum '] <- 'Hieracium diaphanum'
+  ATA2$Species_syn[ATA2$Species_syn == 'Hieracium dovrense '] <- 'Hieracium dovrense'
+  ATA2$Species_syn[ATA2$Species_syn == 'Hieracium epimedium '] <- 'Hieracium froelichianum'    
+  ATA2$Species_syn[ATA2$Species_syn == 'Hieracium murorum '] <- 'Hieracium murorum'
+  ATA2$Species_syn[ATA2$Species_syn == 'Hieracium nigrescens '] <- 'Hieracium nigrescens'
+  ATA2$Species_syn[ATA2$Species_syn == 'Hieracium ramosum '] <- 'Hieracium ramosum'
+  ATA2$Species_syn[ATA2$Species_syn == 'Hierochloe hirta'] <- 'Anthoxanthum nitens'            # OBS! Potentially needs validation
+  ATA2$Species_syn[ATA2$Species_syn == 'Mentha \xd7verticillata'] <- 'Mentha verticillata'
+  ATA2$Species_syn[ATA2$Species_syn == 'Mulgedium sibiricum'] <- 'Lactuca sibirica'            
+  ATA2$Species_syn[ATA2$Species_syn == 'Nigritella nigra'] <- 'Gymnadenia nigra'               
+  ATA2$Species_syn[ATA2$Species_syn == 'Poa \xd7jemtlandica'] <- 'Poa jemtlandica'
+  ATA2$Species_syn[ATA2$Species_syn == 'Ranunculus auricomus '] <- 'Ranunculus auricomus'
+  ATA2$Species_syn[ATA2$Species_syn == 'Salix \xd7arctogena'] <- 'Salix arctogena'
+  ATA2$Species_syn[ATA2$Species_syn == 'Sedum rupestre'] <- 'Petrosedum rupestre'              
+  ATA2$Species_syn[ATA2$Species_syn == 'Taraxacum officinale '] <- 'Taraxacum officinale'
+  ATA2$Species_syn[ATA2$Species_syn == 'Eleocharis macrostachya'] <- 'Eleocharis macrostachya'   # Correct name in all databases - genuinely no records
+  ATA2$Species_syn[ATA2$Species_syn == 'Stellaria alsine var. alsine'] <- 'Stellaria alsine'
+  ATA2$Species_syn[ATA2$Species_syn == 'Zostera noltii '] <- 'Zostera noltii'
+  ATA2$Species_syn[ATA2$Species_syn == 'Botrychium multifidum'] <- 'Sceptridium multifidum'
+  ATA2$Species_syn[ATA2$Species_syn == 'Hymenophyllum tunbrigense'] <- 'Hymenophyllum tunbrigense'   # Correct name in all databases - genuinely no records
+  ATA2$Species_syn[ATA2$Species_syn == 'Lavatera arborea'] <- 'Malva arborea'
+  ATA2$Species_syn[ATA2$Species_syn == 'Mycelis muralis'] <- 'Lactuca muralis'
+  ATA2$Species_syn[ATA2$Species_syn == 'Listera cordata'] <- 'Neottia cordata'
+  ATA2$Species_syn[ATA2$Species_syn == 'Minuartia stricta'] <- 'Sabulina stricta'
+  ATA2$Species_syn[ATA2$Species_syn == 'Coeloglossum viride'] <- 'Dactylorhiza viridis'
+  ATA2$Species_syn[ATA2$Species_syn == 'Listera ovata'] <- 'Neottia ovata'
+  ATA2$Species_syn[ATA2$Species_syn == 'Minuartia rubella'] <- 'Sabulina rubella'
+  ATA2$Species_syn[ATA2$Species_syn == 'Elytrigia juncea'] <- 'Thinopyrum junceum'             
+  ATA2$Species_syn[ATA2$Species_syn == 'Atocion rupestre'] <- 'Heliosperma pusillum'           
+  ATA2$Species_syn[ATA2$Species_syn == 'Glaux maritima'] <- 'Lysimachia maritima'
+  ATA2$Species_syn[ATA2$Species_syn == 'Polystichum setiferum'] <- 'Polystichum setiferum'     # Correct name in all databases - genuinely no records
+  ATA2$Species_syn[ATA2$Species_syn == 'Hierochloe alpina'] <- 'Anthoxanthum monticola'        
+  ATA2$Species_syn[ATA2$Species_syn == 'Minuartia biflora'] <- 'Cherleria biflora'             
+  ATA2$Species_syn[ATA2$Species_syn == 'Chamaepericlymenum suecicum'] <- 'Cornus suecica'
+  ATA2$Species_syn[ATA2$Species_syn == 'Schedonorus giganteus'] <- 'Lolium giganteum'          
+  ATA2$Species_syn[ATA2$Species_syn == 'Blysmopsis rufa'] <- 'Blysmus rufus'
+  ATA2$Species_syn[ATA2$Species_syn == 'Chamerion angustifolium'] <- 'Epilobium angustifolium'
+  ATA2$Species_syn[ATA2$Species_syn == 'Kobresia simpliciuscula'] <- 'Carex simpliciuscula'
+  ATA2$Species_syn[ATA2$Species_syn == 'Calamistrum globuliferum'] <- 'Pilularia globulifera'  
+  ATA2$Species_syn[ATA2$Species_syn == 'Ligusticum scothicum'] <- 'Ligusticum scoticum'
+  ATA2$Species_syn[ATA2$Species_syn == 'Viscaria alpina'] <- 'Silene suecica'                  
+  ATA2$Species_syn[ATA2$Species_syn == 'Monotropa hypopitys'] <- 'Hypopitys monotropa'
+  ATA2$Species_syn[ATA2$Species_syn == 'Ophioglossum vulgatum'] <- 'Ophioglossum vulgatum'     # Correct name in all databases, no downloaded records (unsure why?)
+  ATA2$Species_syn[ATA2$Species_syn == 'Lycopodium annotinum'] <- 'Spinulum annotinum'
+  ATA2$Species_syn[ATA2$Species_syn == 'Bromopsis benekenii'] <- 'Bromus benekenii'
+  ATA2$Species_syn[ATA2$Species_syn == 'Kobresia myosuroides'] <- 'Carex myosuroides'
+  ATA2$Species_syn[ATA2$Species_syn == 'Lappula deflexa'] <- 'Hackelia deflexa'
+  ATA2$Species_syn[ATA2$Species_syn == 'Seseli libanotis'] <- 'Libanotis pyrenaica'            
+  ATA2$Species_syn[ATA2$Species_syn == 'Hierochloe odorata'] <- 'Anthoxanthum nitens'          # OBS!Anthoxanthum nitens is also synonym for Hierochloe hirta
+  ATA2$Species_syn[ATA2$Species_syn == 'Littorella uniflora'] <- 'Littorella uniflora'         # Correct name - genuinely no downloaded records
+  ATA2$Species_syn[ATA2$Species_syn == 'Bromopsis ramosa'] <- 'Bromus ramosus'
+  ATA2$Species_syn[ATA2$Species_syn == 'Avenula pratensis'] <- 'Helictochloa pratensis'
+  ATA2$Species_syn[ATA2$Species_syn == 'Tetragonolobus maritimus'] <- 'Lotus maritimus'
+  ATA2$Species_syn[ATA2$Species_syn == 'Lychnis flos-cuculi'] <- 'Silene flos-cuculi'
+  ATA2$Species_syn[ATA2$Species_syn == 'Ranunculus ficaria'] <- 'Ficaria verna'
+  ATA2$Species_syn[ATA2$Species_syn == 'Anisantha tectorum'] <- 'Bromus tectorum'
+  ATA2$Species_syn[ATA2$Species_syn == 'Elytrigia repens'] <- 'Elymus repens'
+  ATA2$Species_syn[ATA2$Species_syn == 'Ligustrum vulgare'] <- 'Syringa vulgaris'              
+  ATA2$Species_syn[ATA2$Species_syn == 'Potentilla anserina'] <- 'Argentina anserina'
+  ATA2$Species_syn[ATA2$Species_syn == 'Schedonorus arundinaceus'] <- 'Scolochloa festucacea'  # OBS! Potentially doubtful
+  ATA2$Species_syn[ATA2$Species_syn == 'Oxycoccus palustris'] <- 'Vaccinium oxycoccos'
 }
 
-ATA$Species_syn <- as.factor(ATA$Species_syn)
-ATA$Species_syn <- droplevels(ATA$Species_syn)
-ATA$Species_syn[!ATA$Species_syn %in% NorPlant_buff@data$species]
+ATA2$Species_syn <- as.factor(ATA2$Species_syn)
+ATA2$Species_syn <- droplevels(ATA2$Species_syn)
+ATA2$Species_syn[!(ATA2$Species_syn %in% NorPlant_buff@data$species |
+                     ATA2$Species_syn %in% NorPlant_buff@data$species_construct)]
 
-# Calculate the number of records for each of the species, so that this can be related to the availability of traits
-View(table(NorPlant_buff@data$species))   # All species
-View(table(droplevels(NorPlant_buff@data$species[NorPlant_buff@data$species %in% ATA$Species_syn])))   # Species with available traits
+# Define a single name for future use:
+NorPlant_buff@data$species <- as.character(NorPlant_buff@data$species)
+NorPlant_buff@data$species_construct <- as.character(NorPlant_buff@data$species_construct)
+ATA2$Species <- as.character(ATA2$Species)
+ATA2$Species_syn <- as.character(ATA2$Species_syn)
 
-# Add the numbers to the ATA dataframe
-ATA <- merge(ATA, table(droplevels(NorPlant_buff@data$species[NorPlant_buff@data$species %in% ATA$Species_syn])),
-             by.x="Species_syn", by.y="Var1", all=TRUE)
-ATA$Freq[is.na(ATA$Freq)] <- 0
+
+NorPlant_buff@data$species_ATA2 <- NA
+NorPlant_buff@data$species_ATA2 <- ifelse(NorPlant_buff@data$species_construct %in% ATA2$Species_syn,
+                                          paste(NorPlant_buff@data$species_construct),
+                                          NA)
+NorPlant_buff@data$species_ATA2 <- ifelse(is.na(NorPlant_buff@data$species_ATA2),
+                                          paste(NorPlant_buff@data$species),
+                                          paste(NorPlant_buff@data$species_ATA2))
+
+# Calculate the frequencies of each of the downloaded species, and add that to the dataframe
+freq <- as.data.frame(table(as.factor(NorPlant_buff@data$species_ATA2[NorPlant_buff@data$species_ATA2 %in% ATA2$Species_syn])))
+
+ATA2 <- merge(ATA2, freq,
+              by.x="Species_syn", by.y="Var1", all=TRUE)
 
 # View the number of available traits and the number of occurrences
-View(ATA[,c("Species_syn", "Species", "sum_all_traits", "sum_Grouped", "sum_Selected", "Freq")])
+View(ATA2[,c("Species_syn", "Species", "sum_all_traits", "sum_Grouped", "sum_Selected", "Freq")])
 
 # Visualize it in a plot
 panel.cor <- function(x, y, digits=1, prefix="", cex.cor = 6)  # Function from Zuur-course for correlations in pair-plot 
@@ -360,46 +339,17 @@ panel.cor <- function(x, y, digits=1, prefix="", cex.cor = 6)  # Function from Z
     cex = cex.cor}
   text(0.5, 0.5, txt, cex = cex * r)
 }
-pairs(ATA[, c("sum_all_traits", "sum_Grouped", "sum_Selected", "Freq")],
+pairs(ATA2[, c("sum_all_traits", "sum_Grouped", "sum_Selected", "Freq")],
       lower.panel=panel.cor)
 
 # How many missing species in each trait category and frequency
-nrow(ATA[ATA$Freq==0, ])
-nrow(ATA[ATA$sum_all_traits==0, ])
-nrow(ATA[ATA$sum_Grouped==0, ])
-nrow(ATA[ATA$sum_Selected==0, ])
-nrow(ATA[ATA$Height_Grouped==0, ])
-nrow(ATA[ATA$Leaf_Grouped==0, ])
-nrow(ATA[ATA$Seed_Grouped==0, ])
-
-# Higlight the points/species with missing data
-plot(x= ATA$Freq, y=ATA$sum_all_traits,
-     xlim=c(min(ATA$Freq)-1, max(ATA$Freq)+1),
-     ylim=c(min(ATA$sum_all_traits)-1, max(ATA$sum_all_traits)+1),
-     cex=1, pch=17, col="gray")
-
-plot(1, type="n",
-     xlim=c(min(ATA$Freq)-1, max(ATA$Freq)+1), xlab="Freq",
-     ylim=c(min(ATA$sum_all_traits)-1, max(ATA$sum_all_traits)+1), ylab="sum_all_traits") 
-text(x=ATA$Freq,  y=ATA$sum_all_traits,
-     labels=ATA$Species_syn,
-     cex=0.5, adj=0.5, offset=0, col="gray40")  
-  points(x= ATA[ATA$Seed_Grouped==0, "Freq"],
-         y=ATA[ATA$Seed_Grouped==0, "sum_all_traits"],
-         cex=1.25, pch=19, col="yellow")                         # No seed traits available
-  points(x= ATA[ATA$Leaf_Grouped==0, "Freq"],
-         y=ATA[ATA$Leaf_Grouped==0, "sum_all_traits"],
-         cex=1.25, pch=1, col="forestgreen")                     # No leaf traits available
-  points(x= ATA[ATA$Height_Grouped==0, "Freq"],
-       y=ATA[ATA$Height_Grouped==0, "sum_all_traits"],
-       cex=1, pch=4, col="blue")                                 # No height traits available
-  points(x= ATA[ATA$Freq==0, "Freq"],
-         y=ATA[ATA$Freq==0, "sum_all_traits"],
-         cex=0.75, pch=20, col="red")                            # No observations for species name/synonym
-legend("bottomright", legend=c("No seed traits", "No leaf traits", "No height traits", "No obs. for \nspecies name"),
-       col=c("yellow", "forestgreen", "blue", "red"),
-       pch=c(19, 1, 4, 20),
-       cex=0.75)
+nrow(ATA2[ATA2$Freq==0, ])
+nrow(ATA2[ATA2$sum_all_traits==0, ])
+nrow(ATA2[ATA2$sum_Grouped==0, ])
+nrow(ATA2[ATA2$sum_Selected==0, ])
+nrow(ATA2[ATA2$Height_Grouped==0, ])
+nrow(ATA2[ATA2$Leaf_Grouped==0, ])
+nrow(ATA2[ATA2$Seed_Grouped==0, ])
 
 
 ## 3. RASTERIZE THE DATASETS       ####
@@ -409,16 +359,16 @@ legend("bottomright", legend=c("No seed traits", "No leaf traits", "No height tr
 # Rasterize the species occurrence data sets, both in terms of presence absence (fun='last') or number of occurrences (fun='count')
 # Loop through and save files individually
 # Use only the native species, for which we have data
-NorPlant_ATA <- NorPlant_buff[NorPlant_buff@data$species %in% ATA$Species_syn,]
+NorPlant_ATA <- NorPlant_buff[NorPlant_buff@data$species_ATA2 %in% ATA2$Species_syn,]
 NorPlant_ATA@data <- droplevels(NorPlant_ATA@data)
 
-for (i in 1:length(levels(as.factor(NorPlant_ATA$species)))){
+for (i in 1:length(levels(as.factor(NorPlant_ATA$species_ATA2)))){
   print(i)
-  r20_occ<-rasterize(NorPlant_ATA[NorPlant_ATA$species==levels(as.factor(NorPlant_ATA$species))[i],],r20,field=1,fun='count')
-  r20_pa<-rasterize(NorPlant_ATA[NorPlant_ATA$species==levels(as.factor(NorPlant_ATA$species))[i],],r20,field=1,fun='last')
+  r20_occ<-rasterize(NorPlant_ATA[NorPlant_ATA$species_ATA2==levels(as.factor(NorPlant_ATA$species_ATA2))[i],],r20,field=1,fun='count')
+  r20_pa<-rasterize(NorPlant_ATA[NorPlant_ATA$species_ATA2==levels(as.factor(NorPlant_ATA$species_ATA2))[i],],r20,field=1,fun='last')
   
-  namevec_20o<-paste('rasters/occ20k/',levels(as.factor(NorPlant_ATA$species))[i],sep='_')
-  namevec_20pa<-paste('rasters/pa20k/',levels(as.factor(NorPlant_ATA$species))[i],sep='_')
+  namevec_20o<-paste('rasters/occ20k/',levels(as.factor(NorPlant_ATA$species_ATA2))[i],sep='_')
+  namevec_20pa<-paste('rasters/pa20k/',levels(as.factor(NorPlant_ATA$species_ATA2))[i],sep='_')
   
   writeRaster(r20_occ,filename=namevec_20o,format='GTiff',overwrite=T)
   writeRaster(r20_pa,filename=namevec_20pa,format='GTiff',overwrite=T)
@@ -447,48 +397,112 @@ plot(pa20k_stack[["X_Potentilla_erecta"]], main="\nPresence/absence")
     # OBS! Takes quite a while to run, even on the server
 ras_nspec <- calc(pa20k_stack, fun=sum, na.rm=TRUE)
 ras_noccur <- calc(occ20k_stack, fun=sum, na.rm=TRUE)
+writeRaster(ras_nspec,filename='rasters/nspec',format='GTiff',overwrite=T)
+writeRaster(r20_pa,filename='rasters/noccur',format='GTiff',overwrite=T)
 
 plot(ras_nspec, main="Number of species in grid cell")
 plot(ras_noccur, main="Number of occurrences in grid cell")
 
-## 4. (VERY) PERLIMINARY MAPPING OF THE AVAILABLE TRAIT DATA ####  NO WORKING YET!
-##-----------------------------------------------------------####
-# The preliminary trait data is taken from the file 'TRAITSavaiable&lacking.csv'
-# This is not the final analysis, it is simply done to test the code etc.
-TRAITS <- read.csv("TRAITSavaiable&lacking.csv", header=TRUE, sep = ",")
-TRAITS$original_name <- as.character(TRAITS$original_name)
-
-# We have some issues with the coding of the names not being loaded properly, and I cannot figure out why that is
-    # Unfortunately, 'gsub' doesn't recognize '?' as a valid character, and using it messes things up even more
-    # Thus, I have replaced the original names in the problematic rows manually, to at least make the errors in the dataframes alike
-    # This should changed/updated as we advance
-{TRAITS[1071, "original_name"] <- 'Carex \xd7stenolepis'
-  TRAITS[1072, "original_name"] <- 'Carex \xd7vacillans'
-  TRAITS[1109, "original_name"] <- 'Diphasiastrum \xd7zeilleri'
-  TRAITS[1132, "original_name"] <- 'Eriophorum \xd7medium'
-  TRAITS[1136, "original_name"] <- 'Euphrasia foulaensis'
-  TRAITS[1167, "original_name"] <- 'Mentha \xd7verticillata'
-  TRAITS[1193, "original_name"] <- 'Poa \xd7jemtlandica'
-  TRAITS[1219, "original_name"] <- 'Salix \xd7arctogena'}
-
-# Add the GBIF synonyms to make it merge-able with the GBIF data set
-TRAITS <- merge(TRAITS, ATA[,c("Species_syn", "Species")], by.x="original_name", by.y="Species", all=TRUE)
-NorPlant_ATA@data <- merge(NorPlant_ATA@data, TRAITS, by.x="species", by.y="Species_syn", all.x=TRUE)
-
-# Make rasters of a selected trait - one for each species - NOT WORKING YET!
-for (i in 1:length(levels(as.factor(NorPlant_ATA$species)))){
+## 4. GEOGRAPHICAL RANGE OF EACH SPECIES ####
+##   (should be redone for all names)    ####
+##---------------------------------------####
+# Calculate the number of cells with P/A for each species, based on the pa20k_stack
+ws <- data.frame(name=names(pa20k_stack), ncell=NA)
+for(i in 1:nlayers(pa20k_stack)){
   print(i)
-  r20_pa_height <- rasterize(NorPlant_ATA[NorPlant_ATA$species==levels(as.factor(NorPlant_ATA$species))[i],],
-                             r20, field=NorPlant_ATA[i, "canopy_height"], fun='last')
-  
-  namevec_20pa_height <- paste('rasters/pa20k_height/',levels(as.factor(NorPlant_ATA$species))[i],sep='_')
-  
-  writeRaster(r20_pa_height, filename=namevec_20pa_height, format='GTiff',overwrite=T)
+  ws[i,"ncell"] <- freq(pa20k_stack[[i]], value=1)
 }
 
-# list and import
-height_files<-list.files('rasters/pa20k_height/',full.names=T)
-height_stack<-stack(height_files)
+# Rename the species to match the columns in ATA2
+ws$name2 <- gsub("^.*?_", "", ws$name)
+ws$name2 <- gsub('_', ' ', ws$name2)
+ws$name2 <- gsub('\\.', '-', ws$name2)
+ATA2$Species_syn <- gsub('\\.', '-', ATA2$Species_syn)   # Just to be sure!
 
+ # Insert calculations in the ATA dataframe
+ATA2 <- merge(ATA2, ws[,c(2,3)], all=TRUE, by.x="Species_syn", by.y="name2")
+ATA2[is.na(ATA2$ncell), "ncell"] <- 0      # Insert zeros if we have no occurrence records
+ATA2[is.na(ATA2$Freq), "Freq"] <- 0      # Insert zeros if we have no occurrence records
 
+# Calculate the proportional geographic range:
+ATA2$prop.ncell <- ATA2$ncell/freq(r20, value=1)
 
+G0_ATA <- ATA2[ATA2$sum_Grouped==0, c(1,2,32:36,44:47)]
+G1_ATA <- ATA2[ATA2$sum_Grouped==1, c(1,2,32:36,44:47)]
+G2_ATA <- ATA2[ATA2$sum_Grouped==2, c(1,2,32:36,44:47)]
+G3_ATA <- ATA2[ATA2$sum_Grouped==3, c(1,2,32:36,44:47)]
+
+# Histograms
+library(dplyr)
+library(forcats)
+# Frequency
+{G0_ATA[G0_ATA$Freq<100,] %>%
+  mutate(Species = fct_reorder(Species, Freq)) %>%
+  ggplot( aes(x=Species, y=Freq)) +
+  geom_bar(stat="identity") +
+  ggtitle("0 trait groups, Freq<100") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7)) }
+{G1_ATA[G1_ATA$Freq<100,] %>%
+  mutate(Species = fct_reorder(Species, Freq)) %>%
+  ggplot( aes(x=Species, y=Freq)) +
+  geom_bar(stat="identity") +
+    ggtitle("1 trait group, Freq<100") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7))}
+{G2_ATA[G2_ATA$Freq<100,] %>%
+  mutate(Species = fct_reorder(Species, Freq)) %>%
+  ggplot( aes(x=Species, y=Freq)) +
+  geom_bar(stat="identity") +
+    ggtitle("2 trait groups, Freq<100") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7)) }
+{G3_ATA[G3_ATA$Freq<100,] %>%
+  mutate(Species = fct_reorder(Species, Freq)) %>%
+  ggplot( aes(x=Species, y=Freq)) +
+  geom_bar(stat="identity") +
+    ggtitle("3 trait groups, Freq<100") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7)) }
+
+# Proportion of grid cells
+{G0_ATA %>%
+    mutate(Species = fct_reorder(Species, prop.ncell)) %>%
+    ggplot( aes(x=Species, y=prop.ncell)) +
+    geom_bar(stat="identity") +
+    ggtitle("0 trait groups") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7)) }
+{G1_ATA %>%
+    mutate(Species = fct_reorder(Species, prop.ncell)) %>%
+    ggplot( aes(x=Species, y=prop.ncell)) +
+    geom_bar(stat="identity") +
+    ggtitle("1 trait group") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7))}
+{G2_ATA %>%
+    mutate(Species = fct_reorder(Species, prop.ncell)) %>%
+    ggplot( aes(x=Species, y=prop.ncell)) +
+    geom_bar(stat="identity") +
+    ggtitle("2 trait groups") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7)) }
+{G3_ATA %>%
+    mutate(Species = fct_reorder(Species, prop.ncell)) %>%
+    ggplot( aes(x=Species, y=prop.ncell)) +
+    geom_bar(stat="identity") +
+    ggtitle("3 trait groups") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7)) }
+
+# Species with data for 0 or 1 trait groups, and a geographic range of >1/3 of the grid cells
+{G0_ATA[G0_ATA$prop.ncell>0.33,] %>%
+    mutate(Species = fct_reorder(Species, prop.ncell)) %>%
+    ggplot( aes(x=Species, y=prop.ncell)) +
+    geom_bar(stat="identity") +
+    ggtitle("0 trait groups, range > 33%") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7))}
+{G1_ATA[G1_ATA$prop.ncell>0.33,] %>%
+    mutate(Species = fct_reorder(Species, prop.ncell)) %>%
+    mutate(col.bar = case_when(Height_Grouped==1 ~ "Leaf and seed",
+                               Leaf_Grouped==1 ~ "Height and seed",
+                               Seed_Grouped==1 ~ "Height and leaf"))  %>%
+  ggplot( aes(x=Species, y=prop.ncell, fill=col.bar)) +
+    geom_bar(stat="identity") +
+    ggtitle("1 trait group, range > 33%") +
+    scale_fill_manual("Missing trait groups", values = c("Leaf and seed" = "gray15",
+                                                         "Height and seed" = "gray40",
+                                                         "Height and leaf" = "gray65")) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7))}
