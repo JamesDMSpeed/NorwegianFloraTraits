@@ -214,7 +214,12 @@ nlevels(NorPlant_buff$species)
 for (i in 1:length(levels(as.factor(NorPlant_buff$species_construct)))){
   print(i)
   r20_occ<-rasterize(NorPlant_buff[NorPlant_buff$species_construct==levels(as.factor(NorPlant_buff$species_construct))[i],],r20,field=1,fun='count')
+  r20_occ[is.na(r20_occ[])] <- 0
+  r20_occ <- mask(r20_occ, as(norway_UTM_buff, 'Spatial'), updatevalue=NA)
+  
   r20_pa<-rasterize(NorPlant_buff[NorPlant_buff$species_construct==levels(as.factor(NorPlant_buff$species_construct))[i],],r20,field=1,fun='last')
+  r20_pa[is.na(r20_pa[])] <- 0
+  r20_pa <- mask(r20_pa, as(norway_UTM_buff, 'Spatial'), updatevalue=NA)
   
   namevec_20o<-paste('/home/ahomez/t/tanjakp/export/NorwFlorTrait/rasters/occ20k/',levels(as.factor(NorPlant_buff$species_construct))[i],sep='_')  # OBS on the name/path - this is in my Franklin-export folder
   namevec_20pa<-paste('/home/ahomez/t/tanjakp/export/NorwFlorTrait/rasters/pa20k/',levels(as.factor(NorPlant_buff$species_construct))[i],sep='_')
@@ -222,6 +227,7 @@ for (i in 1:length(levels(as.factor(NorPlant_buff$species_construct)))){
   writeRaster(r20_occ,filename=namevec_20o,format='GTiff',overwrite=T)
   writeRaster(r20_pa,filename=namevec_20pa,format='GTiff',overwrite=T)
 }
+
 
 # Import the rasters
 # List and download files (If there are other files in the folder, need to speficiy those with string e.g. '.tif')
@@ -239,18 +245,18 @@ rm(pa20k_files)
 # Plot the rasters - if you want it all, just use e.g. plot(occ20k_stack). Here I have shown an example for a single species
 # Just change the species name (but keep the format) - here is an example plot:
 par(mfrow=c(1,2))
-plot(occ20k_stack[["X_Anemone_nemorosa"]], main="Anemone nemorosa, \n# of occurrence records")
-plot(pa20k_stack[["X_Anemone_nemorosa"]], main="\nPresence/absence")
+plot(occ20k_stack[["X_Hepatica_nobilis"]], main="Hepatica nobilis, \n# of occurrence records")
+plot(pa20k_stack[["X_Hepatica_nobilis"]], main="\nPresence/absence")
 
 # Make a raster with number of species and number of observations in each grid cell
-    # OBS! Takes quite a while to run, even on the server
+    # OBS! Takes quite a long time to run, even on the server
 ras_nspec <- sum(pa20k_stack, na.rm=TRUE)
 ras_noccur <- sum(occ20k_stack, na.rm=TRUE)
 
 writeRaster(ras_nspec,filename='/home/ahomez/t/tanjakp/export/NorwFlorTrait/rasters/nspec',format='GTiff',overwrite=T)
 writeRaster(r20_pa,filename='/home/ahomez/t/tanjakp/export/NorwFlorTrait/rasters/noccur',format='GTiff',overwrite=T)   
 
-#ras_nspec <- raster("rasters/nspec.tif")     # If we want to import the rasters again
+#ras_nspec <- raster("rasters/nspec.tif")     # If we want to import the rasters from the folder
 #ras_noccur <- raster("rasters/noccur.tif")
 
 plot(ras_nspec, main="Number of species in grid cells")
