@@ -897,7 +897,7 @@ ggarrange(ggplot(FD.no.df, aes(x=nbsp)) +
   plot(CWM_raster.cc)
   plot(CWM_raster.cc[[1:9]])
   plot(CWM_raster.cc[[10:16]])
-  plot(CWM_raster.cc[[c(10,12:15)]])
+  plot(CWM_raster.cc[[c(10,12:15)]], box=F, axes=F)
   
   # Histograms of all indices and species richness
   ggarrange(ggplot(FD.cc.df, aes(x=nbsp)) +
@@ -1038,7 +1038,7 @@ r.poly2 <- st_as_sf(r.poly[,-c(1:16)])
 AR50_grid <- st_intersection(r.poly2, st_make_valid(AR50))
 AR50_grid$area_m2 <- st_area(AR50_grid)  # Calculate the area of polygons
 
-# Group by Pixelnr and calculat area of each land-cover category
+# Group by Pixelnr and calculate area of each land-cover category
 AR50_grpixel <- st_drop_geometry(AR50_grid) %>%
   group_by(Pixelnr) %>%
   summarize(sum_10 = sum(area_m2[artype=="10"]),
@@ -1362,7 +1362,7 @@ fviz_pca_var(landcover_terr.pca,
              repel = TRUE     # Avoid text overlapping
 )
 fviz_pca_var(landcover_terr.pca,
-             axes = c(3,4),
+             axes = c(2,3),
              col.var = "contrib", # Color by contributions to the PC
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
              repel = TRUE     # Avoid text overlapping
@@ -1407,7 +1407,7 @@ library(data.table, lib.loc = "/home/ahomez/t/tanjakp/export/library")
 library(forcats, lib.loc = "/home/ahomez/t/tanjakp/export/library")  
 
 ##--- 5.1 Data exploration ---####
-# Before initiating the models, check the data to see if we have colinear variables, collerations etc:
+# Before initiating the models, check the data to see if we have colinear variables etc:
 source("/home/ahomez/t/tanjakp/HighstatLibV10.R")
 # Colinearity
 pairs(cbind(FD.cc.df[,c("nbsp","FRic","FEve","FDiv","FDis")], as.data.frame(env_raster)), lower.panel = panel.cor)
@@ -2227,5 +2227,1011 @@ pairs(as.data.frame(raster_data)[,c("Annual.Precipitation","Mean.Temperature.of.
                                     "Agriculture","Forest","Open","Mire","Snow.Ice","Freshwater","Habitat.heterogeneity","PC1","PC2")], lower.panel = panel.cor)
 pairs(as.data.frame(raster_data2)[,c("Height.gen","Height.veg","LDMC","Leaf.area","Leaf.dry.mass","Seed.dry.mass",
                                     "Seed.number.per.plant","SLA","Woodiness")], lower.panel = panel.cor)
+
+
+
+##------------------------------####
+##--- 7. SENSITIVITY TO OUTLIER ---####
+# During the meeting on 08.03.21 we found that some if the patterns in FD are caused by outliers in the underlying PCoA,
+# in particular Osmunda regalis. We therefore have to check how sensitive the results are to excluding this species:
+
+##--- 7.1 Functional diversity metrics ---####
+# Remove Osmunda regalis from trait- and communita data
+traitsFD6 <- traitsFD5[!rownames(traitsFD5)=="Osmunda regalis",]
+  
+CWM_speciesFD6 <- CWM_speciesFD[which(rownames(CWM_speciesFD) %in% rownames(CWM.df)),
+                                which(colnames(CWM_speciesFD) %in% rownames(traitsFD6))]
+  
+# Calculate with a standardised FRic
+{
+  FD.osreg <- dbFD(traitsFD6, as.matrix(CWM_speciesFD6),
+                w.abun = FALSE, stand.x = TRUE,  # OBS on these ones
+                corr = c("cailliez"),            # OBS on this one
+                calc.FRic = TRUE, m = 'min', stand.FRic = TRUE,
+                scale.RaoQ = FALSE,
+                calc.FGR = FALSE,
+                clust.type = "ward",
+                calc.CWM = TRUE, CWM.type = c("all"), 
+                calc.FDiv = TRUE, 
+                print.pco = TRUE, messages = TRUE)
+}
+  
+FD.osreg.df <- cbind(as.integer(rownames(FD.osreg$CWM)),
+                  FD.osreg$nbsp,
+                  FD.osreg$sing.sp,
+                  FD.osreg$FRic, FD.osreg$FEve,
+                  FD.osreg$FDiv, FD.osreg$FDis,
+                  FD.osreg$RaoQ, FD.osreg$CWM[,c(1:8,10)] # Remember to use 'Woodiness_1' as the right variable!
+)
+  names(FD.osreg.df) <- c("Pixelnr","nbsp", "sing.sp","FRic","FEve","FDiv","FDis","RaoQ",names(FD.osreg$CWM[,c(1:8,10)]))
+  FD.osreg.df <- left_join(data.frame(Pixelnr = functcomp.norway[,c("Pixelnr")]), FD.osreg.df, by="Pixelnr")
+  
+  # Make a raster with CWM trait values, number of species and Functional Diversity Indices
+  CWM_raster.osreg <- dropLayer(pa20k_stack, c(17:1248))  # OBS HERE!
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$Height.gen, layer=1)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$Height.veg, layer=2)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$LDMC, layer=3)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$Leaf.area, layer=4)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$Leaf.dry.mass, layer=5)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$Seed.dry.mass, layer=6)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$Seed.number.per.plant, layer=7)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$SLA, layer=8)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$Woodiness, layer=9)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$nbsp, layer=10)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$sing.sp, layer=11)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$FRic, layer=12)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$FEve, layer=13)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$FDiv, layer=14)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$FDis, layer=15)
+  CWM_raster.osreg <- setValues(CWM_raster.osreg, FD.osreg.df$RaoQ, layer=16)
+  
+  names(CWM_raster.osreg) <- c("Height.gen","Height.veg","LDMC","Leaf.area","Leaf.dry.mass","Seed.dry.mass","Seed.number.per.plant","SLA","Woodiness",
+                            "nbsp", "sing.sp","FRic","FEve","FDiv","FDis","RaoQ")
+  
+  plot(CWM_raster.osreg[[c(10,12:15)]], box=F, axes=F)
+
+  # Histograms of all indices and species richness
+  ggarrange(ggplot(FD.osreg.df, aes(x=nbsp)) +
+              geom_histogram() +
+              labs(x="Number of species"),
+            ggplot(FD.osreg.df, aes(x=FRic)) +
+              geom_histogram() +
+              labs(x="FRic"),
+            ggplot(FD.osreg.df, aes(x=FEve)) +
+              geom_histogram() +
+              labs(x="FEve"),
+            ggplot(FD.osreg.df, aes(x=FDiv)) +
+              geom_histogram() +
+              labs(x="FDiv"),
+            ggplot(FD.osreg.df, aes(x=FDis)) +
+              geom_histogram() +
+              labs(x="FDis"),
+            nrow = 2, ncol=3)
+
+##--- 7.2 Modelling, FD metrics ---####
+# Gather both predictors and relevant responses in a single raster:
+raster_data.osreg <- raster::addLayer(
+  CWM_raster.osreg[[c("nbsp","FRic","FEve","FDiv","FDis")]],
+  env_raster)  
+
+# Check the response variables for outliers:
+Mydotplot(FD.osreg.df[,c("nbsp","FRic","FEve","FDiv","FDis")])   
+  
+# Convert the raster to a SpatialPixelsDataFrame and a regular dataframe (to make it 'lighter'), and remove 'incomplete' pixels
+data.pxl.osreg <- as(raster_data.osreg, "SpatialPixelsDataFrame")
+data.pxl.osreg <- data.pxl.osreg[!is.na(data.pxl.osreg$nbsp),]
+data.pxl.osreg <- data.pxl.osreg[complete.cases(data.pxl.osreg@data), ]  # Incomplete cases in bioclim and topography
+data.pxl.df.osreg <- as.data.frame(data.pxl.osreg)
+data.pxl.df.osreg$nbsp.prop <- data.pxl.osreg$nbsp/1232  # proportion of total no. species
+
+nb.pxl.osreg <- dnearneigh(coordinates(data.pxl.osreg), 0, 28284.3)
+nb.pxl_dists.osreg <- nbdists(nb.pxl.osreg, coordinates(data.pxl.osreg))  # List of Euclidian distances along the neighbourhood links
+nb.pxl_sims.osreg <- lapply(nb.pxl_dists.osreg, function(x) (1-((x/4)^2)) )  # List of general weights corresponding to the neighbours
+ME.listw.osreg <- nb2listw(nb.pxl.osreg, glist=nb.pxl_sims.osreg, style="B", zero.policy = TRUE)  # Spatial weights for neighbours 
+  
+### Number of species
+{
+  ME.nbsp.osreg <- ME(nbsp.prop ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                        Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+                      data = data.pxl.df.osreg,
+                      family = gaussian, listw = ME.listw)
+  m.nbsp.osreg <- glm(nbsp.prop ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                        Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.nbsp.osreg),
+                      data = data.pxl.df.osreg,
+                      family = gaussian,     
+                      na.action="na.fail")  
+  
+  d.nbsp.osreg <- dredge(m.nbsp.osreg)              # Model construction
+  d.nbsp2.osreg <- subset(d.nbsp.osreg, delta<3)    # Subset based on deltaAIC
+  output_nbsp.osreg <- model.sel(d.nbsp2.osreg)     # Model selection
+  m.nbsp.avg.osreg <- model.avg(output_nbsp.osreg, fit=TRUE)     # Model averaging
+}
+### Functional richness
+{
+ME.FRic.osreg <- ME(FRic ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                      Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+                    data = data.pxl.df.osreg,
+                    family = gaussian, listw = ME.listw.osreg)
+m.FRic.osreg <- glm(FRic ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                      Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.FRic.osreg),
+                    data = data.pxl.df.osreg,
+                    family = gaussian,     
+                    na.action="na.fail")  # Needed, otherwise the dredging fails
+
+d.FRic.osreg <- dredge(m.FRic.osreg)              # Model construction
+d.FRic2.osreg <- subset(d.FRic.osreg, delta<3)    # Subset based on deltaAIC
+output_FRic.osreg <- model.sel(d.FRic2.osreg)     # Model selection
+m.FRic.avg.osreg <- model.avg(output_FRic.osreg, fit=TRUE)     # Model averaging
+}
+### Functional evenness 
+{
+ME.FEve.osreg <- ME(FEve ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+                data = data.pxl.df.osreg,
+                family = gaussian, listw = ME.listw.osreg)
+m.FEve.osreg <- glm(FEve ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                      Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.FEve.osreg),
+                    data = data.pxl.df.osreg,
+                    family = gaussian,     
+                    na.action="na.fail")  # Needed, otherwise the dredging fails
+  
+d.FEve.osreg <- dredge(m.FEve.osreg)              # Model construction
+d.FEve2.osreg <- subset(d.FEve.osreg, delta<3)    # Subset based on deltaAIC
+output_FEve.osreg <- model.sel(d.FEve2.osreg)     # Model selection
+m.FEve.avg.osreg <- model.avg(output_FEve.osreg, fit=TRUE)     # Model averaging
+}
+### Functional divergence 
+{
+ME.FDiv.osreg <- ME(FDiv ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                  Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+              data = data.pxl.df.osreg,
+                family = gaussian, listw = ME.listw.osreg)
+m.FDiv.osreg <- glm(FDiv ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                  Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.FDiv.osreg),
+                data = data.pxl.df.osreg,
+                family = gaussian,     
+                na.action="na.fail")  # Needed, otherwise the dredging fails
+  
+d.FDiv.osreg <- dredge(m.FDiv.osreg)              # Model construction
+d.FDiv2.osreg <- subset(d.FDiv.osreg, delta<3)    # Subset based on deltaAIC
+output_FDiv.osreg <- model.sel(d.FDiv2.osreg)     # Model selection
+
+m.FDiv.avg.osreg <- model.avg(output_FDiv.osreg, fit=TRUE)     # Model averaging - not working for a singular model
+  # As all variables are retained in the optimal model: m.FDiv.avg.osreg <- m.FDiv.osreg
+}
+### Functional dispersion
+{
+ME.FDis.osreg <- ME(FDis ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                  Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+                data = data.pxl.df.osreg,
+                family = gaussian, listw = ME.listw.osreg)
+m.FDis.osreg <- glm(FDis ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                  Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.FDis.osreg),
+                data = data.pxl.df.osreg,
+                family = gaussian,     
+                na.action="na.fail")  # Needed, otherwise the dredging fails
+  
+d.FDis.osreg <- dredge(m.FDis.osreg)              # Model construction
+d.FDis2.osreg <- subset(d.FDis.osreg, delta<3)    # Subset based on deltaAIC
+output_FDis.osreg <- model.sel(d.FDis2.osreg)     # Model selection
+m.FDis.avg.osreg <- model.avg(output_FDis.osreg, fit=TRUE)     # Model averaging
+}
+
+##--- 7.3 Modelling, functional traits ---####
+# We need a new dataframe of the individual (CWM) traits 
+raster_data2.osreg <- raster::addLayer(
+  CWM_raster.osreg[[c("Height.gen","Height.veg","LDMC","Leaf.area","Leaf.dry.mass",
+                   "Seed.dry.mass","Seed.number.per.plant","SLA","Woodiness")]],
+  env_raster)
+
+data.pxl2.osreg <- as(raster_data2.osreg, "SpatialPixelsDataFrame")
+data.pxl2.osreg <- data.pxl2.osreg[!is.na(data.pxl2.osreg$Height.gen),]
+data.pxl2.osreg <- data.pxl2.osreg[complete.cases(data.pxl2.osreg@data), ]  # Incomplete cases in bioclim and topography
+data.pxl.df2.osreg <- as.data.frame(data.pxl2.osreg)
+
+## Height.gen 
+{
+  # Eigenvectors
+  ME.Height.gen.osreg <- ME(Height.gen ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                      Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+                      data = data.pxl.df2.osreg,
+                      family = gaussian, listw = ME.listw.osreg)
+  m.Height.gen.osreg <- glm(Height.gen ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                        Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.Height.gen.osreg),
+                      data = data.pxl.df2.osreg,
+                      family = gaussian,     
+                      na.action="na.fail")  # Needed, otherwise the dredging fails
+  
+  d.Height.gen.osreg <- dredge(m.Height.gen.osreg)              # Model construction
+  d.Height.gen2.osreg <- subset(d.Height.gen.osreg, delta<3)    # Subset based on deltaAIC
+  output_Height.gen.osreg <- model.sel(d.Height.gen2.osreg)     # Model selection
+  m.Height.gen.avg.osreg <- model.avg(output_Height.gen.osreg, fit=TRUE)     # Model averaging
+}
+## Height.veg 
+{
+  # Eigenvectors
+  ME.Height.veg.osreg <- ME(Height.veg ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                        Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+                      data = data.pxl.df2.osreg,
+                      family = gaussian, listw = ME.listw.osreg)
+  m.Height.veg.osreg <- glm(Height.veg ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                        Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.Height.veg.osreg),
+                      data = data.pxl.df2.osreg,
+                      family = gaussian,     # OBS! 'nbsp' is a count, not gaussian - I attempted Poisson first, changed to NB due to overdispersion
+                      na.action="na.fail")  # Needed, otherwise the dredging fails
+  
+  d.Height.veg.osreg <- dredge(m.Height.veg.osreg)              # Model construction
+  d.Height.veg2.osreg <- subset(d.Height.veg.osreg, delta<3)    # Subset based on deltaAIC
+  output_Height.veg.osreg <- model.sel(d.Height.veg2.osreg)     # Model selection
+  m.Height.veg.avg.osreg <- model.avg(output_Height.veg.osreg, fit=TRUE)     # Model averaging
+}
+## LDMC 
+{
+  # Eigenvectors
+  ME.LDMC.osreg <- ME(LDMC ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                  Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+                data = data.pxl.df2.osreg,
+                family = gaussian, listw = ME.listw.osreg)
+  m.LDMC.osreg <- glm(LDMC ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                  Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.LDMC.osreg),
+                data = data.pxl.df2.osreg,
+                family = gaussian,     # OBS! 'nbsp' is a count, not gaussian - I attempted Poisson first, changed to NB due to overdispersion
+                na.action="na.fail")  # Needed, otherwise the dredging fails
+  
+  d.LDMC.osreg <- dredge(m.LDMC.osreg)              # Model construction
+  d.LDMC2.osreg <- subset(d.LDMC.osreg, delta<3)    # Subset based on deltaAIC
+  output_LDMC.osreg <- model.sel(d.LDMC2.osreg)     # Model selection
+  m.LDMC.avg.osreg <- model.avg(output_LDMC.osreg, fit=TRUE)     # Model averaging
+}
+## Leaf.area 
+{
+  # Eigenvectors
+  ME.Leaf.area.osreg <- ME(Leaf.area ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                       Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+                     data = data.pxl.df2.osreg,
+                     family = gaussian, listw = ME.listw.osreg)
+  m.Leaf.area.osreg <- glm(Leaf.area ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                       Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.Leaf.area.osreg),
+                     data = data.pxl.df2.osreg,
+                     family = gaussian,     # OBS! 'nbsp' is a count, not gaussian - I attempted Poisson first, changed to NB due to overdispersion
+                     na.action="na.fail")  # Needed, otherwise the dredging fails
+  
+  d.Leaf.area.osreg <- dredge(m.Leaf.area.osreg)              # Model construction
+  d.Leaf.area2.osreg <- subset(d.Leaf.area.osreg, delta<3)    # Subset based on deltaAIC
+  output_Leaf.area.osreg <- model.sel(d.Leaf.area2.osreg)     # Model selection
+  m.Leaf.area.avg.osreg <- model.avg(output_Leaf.area.osreg, fit=TRUE)     # Model averaging
+}
+## Leaf.dry.mass 
+{
+  # Eigenvectors
+  ME.Leaf.dry.mass.osreg <- ME(Leaf.dry.mass ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                           Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+                         data = data.pxl.df2.osreg,
+                         family = gaussian, listw = ME.listw.osreg)
+  m.Leaf.dry.mass.osreg <- glm(Leaf.dry.mass ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                           Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.Leaf.dry.mass.osreg),
+                         data = data.pxl.df2.osreg,
+                         family = gaussian,     # OBS! 'nbsp' is a count, not gaussian - I attempted Poisson first, changed to NB due to overdispersion
+                         na.action="na.fail")  # Needed, otherwise the dredging fails
+  
+  d.Leaf.dry.mass.osreg <- dredge(m.Leaf.dry.mass.osreg)              # Model construction
+  d.Leaf.dry.mass2.osreg <- subset(d.Leaf.dry.mass.osreg, delta<3)    # Subset based on deltaAIC
+  output_Leaf.dry.mass.osreg <- model.sel(d.Leaf.dry.mass2.osreg)     # Model selection
+  m.Leaf.dry.mass.avg.osreg <- model.avg(output_Leaf.dry.mass.osreg, fit=TRUE)     # Model averaging
+}
+## Seed.dry.mass 
+{
+  # Eigenvectors
+  ME.Seed.dry.mass.osreg <- ME(Seed.dry.mass ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                           Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+                         data = data.pxl.df2.osreg,
+                         family = gaussian, listw = ME.listw.osreg)
+  m.Seed.dry.mass.osreg <- glm(Seed.dry.mass ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                           Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.Seed.dry.mass.osreg),
+                         data = data.pxl.df2.osreg,
+                         family = gaussian,     # OBS! 'nbsp' is a count, not gaussian - I attempted Poisson first, changed to NB due to overdispersion
+                         na.action="na.fail")  # Needed, otherwise the dredging fails
+  
+  # Model averaging - I need to figure out if we have to further redo the ME once the model has been reduced
+  d.Seed.dry.mass.osreg <- dredge(m.Seed.dry.mass.osreg)              # Model construction
+  d.Seed.dry.mass2.osreg <- subset(d.Seed.dry.mass.osreg, delta<3)    # Subset based on deltaAIC
+  output_Seed.dry.mass.osreg <- model.sel(d.Seed.dry.mass2.osreg)     # Model selection
+  m.Seed.dry.mass.avg.osreg <- model.avg(output_Seed.dry.mass.osreg, fit=TRUE)     # Model averaging
+}
+## Seed.number.per.plant 
+{
+  # Eigenvectors
+  ME.Seed.number.per.plant.osreg <- ME(Seed.number.per.plant ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                                   Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+                                 data = data.pxl.df2.osreg,
+                                 family = gaussian, listw = ME.listw.osreg)
+  m.Seed.number.per.plant.osreg <- glm(Seed.number.per.plant ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                                   Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.Seed.number.per.plant.osreg),
+                                 data = data.pxl.df2.osreg,
+                                 family = gaussian,     # OBS! 'nbsp' is a count, not gaussian - I attempted Poisson first, changed to NB due to overdispersion
+                                 na.action="na.fail")  # Needed, otherwise the dredging fails
+  
+  # Model averaging - I need to figure out if we have to further redo the ME once the model has been reduced
+  d.Seed.number.per.plant.osreg <- dredge(m.Seed.number.per.plant.osreg)              # Model construction
+  d.Seed.number.per.plant2.osreg <- subset(d.Seed.number.per.plant.osreg, delta<3)    # Subset based on deltaAIC
+  output_Seed.number.per.plant.osreg <- model.sel(d.Seed.number.per.plant2.osreg)     # Model selection
+  m.Seed.number.per.plant.avg.osreg <- model.avg(output_Seed.number.per.plant.osreg, fit=TRUE)     # Model averaging
+}
+## SLA 
+{
+  # Eigenvectors
+  ME.SLA.osreg <- ME(SLA ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                 Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+               data = data.pxl.df2.osreg,
+               family = gaussian, listw = ME.listw.osreg)
+  m.SLA.osreg <- glm(SLA ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                 Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.SLA.osreg),
+               data = data.pxl.df2.osreg,
+               family = gaussian,     # OBS! 'nbsp' is a count, not gaussian - I attempted Poisson first, changed to NB due to overdispersion
+               na.action="na.fail")  # Needed, otherwise the dredging fails
+  
+  # Model averaging - I need to figure out if we have to further redo the ME once the model has been reduced
+  d.SLA.osreg <- dredge(m.SLA.osreg)              # Model construction
+  d.SLA2.osreg <- subset(d.SLA.osreg, delta<3)    # Subset based on deltaAIC
+  output_SLA.osreg <- model.sel(d.SLA2.osreg)     # Model selection
+  m.SLA.avg.osreg <- model.avg(output_SLA.osreg, fit=TRUE)     # Model averaging
+}
+## Woodiness 
+{
+  # Eigenvectors
+  ME.Woodiness.osreg <- ME(Woodiness ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                       Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation,
+                     data = data.pxl.df2.osreg,
+                     family = gaussian, listw = ME.listw.osreg)
+  m.Woodiness.osreg <- glm(Woodiness ~ Annual.Precipitation + Mean.Temperature.of.Warmest.Quarter + Precipitation.Seasonality. +
+                       Topographic.heterogeneity + PC2 + Habitat.heterogeneity + Glaciation + fitted(ME.Woodiness.osreg),
+                     data = data.pxl.df2.osreg,
+                     family = gaussian,     # OBS! 'nbsp' is a count, not gaussian - I attempted Poisson first, changed to NB due to overdispersion
+                     na.action="na.fail")  # Needed, otherwise the dredging fails
+  
+  d.Woodiness.osreg <- dredge(m.Woodiness.osreg)              # Model construction
+  d.Woodiness2.osreg <- subset(d.Woodiness.osreg, delta<3)    # Subset based on deltaAIC
+  output_Woodiness.osreg <- model.sel(d.Woodiness2.osreg)     # Model selection
+  m.Woodiness.avg.osreg <- model.avg(output_Woodiness.osreg, fit=TRUE)     # Model averaging
+}
+
+##--- 7.4 Plots of coefficients/variables ---####
+## Variable importance, FD metrics
+{
+  var.imp.osreg <- full_join(full_join(full_join(tibble::rownames_to_column(as.data.frame(importance(output_nbsp.osreg))),
+                                                           tibble::rownames_to_column(as.data.frame(importance(output_FRic.osreg))),
+                                                           by = "rowname"),
+                                                 tibble::rownames_to_column(as.data.frame(importance(output_FEve.osreg))),
+                                                 by="rowname"),
+                                       #tibble::rownames_to_column(as.data.frame(importance(output_FDiv))),  # Only a single model, add later
+                                       #by="rowname"),
+                             tibble::rownames_to_column(as.data.frame(importance(output_FDis))),
+                             by="rowname")
+  names(var.imp.osreg) <- c("var","nbsp","FRic","FEve","FDis")
+  var.imp.osreg$FDiv <- 1
+  var.imp.osreg <- var.imp.osreg[c(1,3:8),]  # OBS! Take out the spatial eigenvectors
+  var.imp.osreg <- reshape2::melt(var.imp.osreg, id=c("var"))
+  names(var.imp.osreg) <- c("var", "metric","importance")
+  
+var.imp.osreg %>%
+  mutate(metric = fct_relevel(metric, "nbsp","FRic","FEve","FDiv","FDis")) %>%
+  ggplot( aes(x=var, y=importance, shape=metric, fill=metric, width=0.5)) +
+  geom_bar(position = position_dodge(width = 0.75), stat="identity") +
+  labs(x="",y="Relative variable importance") +
+  scale_fill_manual(values=c("gold","darkorange2","firebrick","navy","forestgreen")) + 
+  coord_flip() +
+  theme_minimal() 
+}
+## Model-averaged coefficients, FD metrics
+{
+  coef.df.FDis.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.FDis.avg.osreg)$coefmat.subset))[,c(1,2)],
+                                  tibble::rownames_to_column(as.data.frame(confint(m.FDis.avg.osreg))))
+  names(coef.df.FDis.osreg) <- c("var","est.FDis","lwr.FDis","upr.FDis")
+  coef.df.FDiv.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.FDiv.avg.osreg)$coefficients))[,c(1,2)],  # OBS!
+                                  tibble::rownames_to_column(as.data.frame(confint(m.FDiv.avg.osreg))))
+  names(coef.df.FDiv.osreg) <- c("var","est.FDiv","lwr.FDiv","upr.FDiv")
+  coef.df.FEve.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.FEve.avg.osreg)$coefmat.subset))[,c(1,2)],
+                                  tibble::rownames_to_column(as.data.frame(confint(m.FEve.avg.osreg))))
+  names(coef.df.FEve.osreg) <- c("var","est.FEve","lwr.FEve","upr.FEve")
+  coef.df.FRic.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.FRic.avg.osreg)$coefmat.subset))[,c(1,2)],
+                                  tibble::rownames_to_column(as.data.frame(confint(m.FRic.avg.osreg))))
+  names(coef.df.FRic.osreg) <- c("var","est.FRic","lwr.FRic","upr.FRic")
+  coef.df.nbsp.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.nbsp.avg.osreg)$coefmat.subset))[,c(1,2)],
+                                  tibble::rownames_to_column(as.data.frame(confint(m.nbsp.avg.osreg))))
+  names(coef.df.nbsp.osreg) <- c("var","est.nbsp","lwr.nbsp","upr.nbsp")
+  
+  coef.df.osreg <- full_join(full_join(full_join(full_join(coef.df.FDis.osreg,
+                                                     coef.df.FDiv.osreg, by="var"),
+                                           coef.df.FEve.osreg, by="var"),
+                                 coef.df.FRic.osreg, by="var"),
+                       coef.df.nbsp.osreg, byr="var")
+  coef.df.osreg <- coef.df.osreg[coef.df.osreg$var %in% c("Annual.Precipitation","PC2","Glaciation","Habitat.heterogeneity",
+                                                          "Precipitation.Seasonality.","Mean.Temperature.of.Warmest.Quarter",
+                                                          "Topographic.heterogeneity"),]
+  coef.df.osreg <- data.frame(var = c(rep(coef.df.osreg$var, 5)),
+                        metric = c(rep(c("FDis","FDiv","FEve","FRic","nbsp"), each=7)),
+                        est = c(coef.df.osreg$est.FDis, coef.df.osreg$est.FDiv, coef.df.osreg$est.FEve, coef.df.osreg$est.FRic, coef.df.osreg$est.nbsp),
+                        lwr = c(coef.df.osreg$lwr.FDis, coef.df.osreg$lwr.FDiv, coef.df.osreg$lwr.FEve, coef.df.osreg$lwr.FRic, coef.df.osreg$lwr.nbsp),
+                        upr = c(coef.df.osreg$upr.FDis, coef.df.osreg$upr.FDiv, coef.df.osreg$upr.FEve, coef.df.osreg$upr.FRic, coef.df.osreg$upr.nbsp))
+
+coef.df.osreg %>%
+    mutate(metric = fct_relevel(metric, "nbsp","FRic","FEve","FDiv","FDis")) %>%
+    ggplot( aes(x=var, y=est, color=metric, shape=metric)) +
+    geom_hline(yintercept = 0, linetype="dashed", color="gray") +
+    geom_point(position = position_dodge(width = 0.75)) +
+    geom_errorbar(aes(ymin=lwr, ymax=upr), width=0.5, position = position_dodge(width = 0.75)) +
+    labs(x="",y="Model-averaged coefficient estimates") +
+    scale_color_manual(values=(c("gold","darkorange2","firebrick","navy","forestgreen")) ) +
+    coord_flip() +
+  facet_wrap(~ metric, scales = "free", nrow=2) +
+  theme_bw() +
+  theme(legend.position = "none")
+  
+}
+
+## Variable importance, individual traits 
+{
+  var.imp2.osreg <- full_join(full_join(full_join(full_join(full_join(full_join(full_join(full_join(tibble::rownames_to_column(as.data.frame(importance(output_Height.gen.osreg))),
+                                                                                              tibble::rownames_to_column(as.data.frame(importance(output_Height.veg.osreg))), by = "rowname"),
+                                                                                    tibble::rownames_to_column(as.data.frame(importance(output_LDMC.osreg))), by="rowname"),
+                                                                          tibble::rownames_to_column(as.data.frame(importance(output_Leaf.area.osreg))), by="rowname"),
+                                                                tibble::rownames_to_column(as.data.frame(importance(output_Leaf.dry.mass.osreg))), by="rowname"),
+                                                      tibble::rownames_to_column(as.data.frame(importance(output_Seed.dry.mass.osreg))), by="rowname"),
+                                            tibble::rownames_to_column(as.data.frame(importance(output_Seed.number.per.plant.osreg))), by="rowname"),
+                                  tibble::rownames_to_column(as.data.frame(importance(output_SLA.osreg))), by="rowname"),
+                        tibble::rownames_to_column(as.data.frame(importance(output_Woodiness.osreg))), by="rowname")
+  
+  names(var.imp2.osreg) <- c("var","Height.gen","Height.veg","LDMC","Leaf.area","Leaf.dry.mass","Seed.dry.mass","Seed.number.per.plant","SLA","Woodiness")
+  var.imp2.osreg <- var.imp2.osreg[c(1,3:8),]  # OBS! Take out the spatial eigenvectors
+  var.imp2.osreg <- reshape2::melt(var.imp2.osreg, id=c("var"))
+  names(var.imp2.osreg) <- c("var", "metric","importance")
+  
+var.imp2.osreg %>%
+    mutate(metric = fct_relevel(metric, "Height.gen","Height.veg","LDMC","Leaf.area","Leaf.dry.mass","Seed.dry.mass","Seed.number.per.plant","SLA","Woodiness")) %>%
+    ggplot( aes(x=var, y=importance, fill=metric, width=0.5)) +
+    geom_bar(position = position_dodge(width = 0.75), stat="identity") +
+    labs(x="",y="Relative variable importance") +
+    coord_flip() +
+    theme_minimal() 
+}
+
+## Model-averaged coefficients, individual traits 
+{
+  {
+    coef.df.Height.gen.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.Height.gen.avg.osreg)$coefmat.subset))[,c(1,2)],
+                                    tibble::rownames_to_column(as.data.frame(confint(m.Height.gen.avg.osreg))))
+    names(coef.df.Height.gen.osreg) <- c("var","est.Height.gen","lwr.Height.gen","upr.Height.gen")
+    coef.df.Height.veg.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.Height.veg.avg.osreg)$coefmat.subset))[,c(1,2)],
+                                    tibble::rownames_to_column(as.data.frame(confint(m.Height.veg.avg.osreg))))
+    names(coef.df.Height.veg.osreg) <- c("var","est.Height.veg","lwr.Height.veg","upr.Height.veg")
+    coef.df.LDMC.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.LDMC.avg.osreg)$coefmat.subset))[,c(1,2)],
+                              tibble::rownames_to_column(as.data.frame(confint(m.LDMC.avg.osreg))))
+    names(coef.df.LDMC.osreg) <- c("var","est.LDMC","lwr.LDMC","upr.LDMC")
+    coef.df.Leaf.area.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.Leaf.area.avg.osreg)$coefmat.subset))[,c(1,2)],
+                                   tibble::rownames_to_column(as.data.frame(confint(m.Leaf.area.avg.osreg))))
+    names(coef.df.Leaf.area.osreg) <- c("var","est.Leaf.area","lwr.Leaf.area","upr.Leaf.area")
+    coef.df.Leaf.dry.mass.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.Leaf.dry.mass.avg.osreg)$coefmat.subset))[,c(1,2)],
+                                       tibble::rownames_to_column(as.data.frame(confint(m.Leaf.dry.mass.avg.osreg))))
+    names(coef.df.Leaf.dry.mass.osreg) <- c("var","est.Leaf.dry.mass","lwr.Leaf.dry.mass","upr.Leaf.dry.mass")
+    coef.df.Seed.dry.mass.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.Seed.dry.mass.avg.osreg)$coefmat.subset))[,c(1,2)],
+                                       tibble::rownames_to_column(as.data.frame(confint(m.Seed.dry.mass.avg.osreg))))
+    names(coef.df.Seed.dry.mass.osreg) <- c("var","est.Seed.dry.mass","lwr.Seed.dry.mass","upr.Seed.dry.mass")
+    coef.df.Seed.number.per.plant.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.Seed.number.per.plant.avg.osreg)$coefmat.subset))[,c(1,2)],
+                                               tibble::rownames_to_column(as.data.frame(confint(m.Seed.number.per.plant.avg.osreg))))
+    names(coef.df.Seed.number.per.plant.osreg) <- c("var","est.Seed.number.per.plant","lwr.Seed.number.per.plant","upr.Seed.number.per.plant")
+    coef.df.SLA.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.SLA.avg.osreg)$coefmat.subset))[,c(1,2)],
+                             tibble::rownames_to_column(as.data.frame(confint(m.SLA.avg.osreg))))
+    names(coef.df.SLA.osreg) <- c("var","est.SLA","lwr.SLA","upr.SLA")
+    coef.df.Woodiness.osreg <- full_join(tibble::rownames_to_column(as.data.frame(summary(m.Woodiness.avg.osreg)$coefmat.subset))[,c(1,2)],
+                                   tibble::rownames_to_column(as.data.frame(confint(m.Woodiness.avg.osreg))))
+    names(coef.df.Woodiness.osreg) <- c("var","est.Woodiness","lwr.Woodiness","upr.Woodiness")
+    
+  }
+  
+  coef.df2.osreg <- full_join(full_join(full_join(full_join(full_join(full_join(full_join(full_join(coef.df.Height.gen.osreg,
+                                                                                              coef.df.Height.veg.osreg, by="var"),
+                                                                                    coef.df.LDMC.osreg, by="var"),
+                                                                          coef.df.Leaf.area.osreg, by="var"),
+                                                                coef.df.Leaf.dry.mass.osreg, by="var"),
+                                                      coef.df.Seed.dry.mass.osreg, by="var"),
+                                            coef.df.Seed.number.per.plant.osreg, by="var"),
+                                  coef.df.SLA.osreg, by="var"),
+                        coef.df.Woodiness.osreg, by="var")
+  
+  coef.df2.osreg <- coef.df2.osreg[coef.df2.osreg$var %in% c("Annual.Precipitation","PC2","Glaciation","Habitat.heterogeneity",
+                                           "Precipitation.Seasonality.","Mean.Temperature.of.Warmest.Quarter",
+                                           "Topographic.heterogeneity"),]
+  coef.df2.osreg <- data.frame(var = c(rep(coef.df2.osreg$var, 9)),
+                         metric = c(rep(c("Height.gen","Height.veg","LDMC","Leaf.area","Leaf.dry.mass",
+                                          "Seed.dry.mass","Seed.number.per.plant","SLA","Woodiness"), each=7)),
+                         est = c(coef.df2.osreg$est.Height.gen, coef.df2.osreg$est.Height.veg, coef.df2.osreg$est.LDMC, coef.df2.osreg$est.Leaf.area, coef.df2.osreg$est.Leaf.dry.mass, coef.df2.osreg$est.Seed.dry.mass, coef.df2.osreg$est.Seed.number.per.plant, coef.df2.osreg$est.SLA, coef.df2.osreg$est.Woodiness),
+                         lwr = c(coef.df2.osreg$lwr.Height.gen, coef.df2.osreg$lwr.Height.veg, coef.df2.osreg$lwr.LDMC, coef.df2.osreg$lwr.Leaf.area, coef.df2.osreg$lwr.Leaf.dry.mass, coef.df2.osreg$lwr.Seed.dry.mass, coef.df2.osreg$lwr.Seed.number.per.plant, coef.df2.osreg$lwr.SLA, coef.df2.osreg$lwr.Woodiness),
+                         upr = c(coef.df2.osreg$upr.Height.gen, coef.df2.osreg$upr.Height.veg, coef.df2.osreg$upr.LDMC, coef.df2.osreg$upr.Leaf.area, coef.df2.osreg$upr.Leaf.dry.mass, coef.df2.osreg$upr.Seed.dry.mass, coef.df2.osreg$upr.Seed.number.per.plant, coef.df2.osreg$upr.SLA, coef.df2.osreg$upr.Woodiness))
+  
+  
+coef.df2.osreg %>%
+    mutate(metric = fct_relevel(metric, "Height.gen","Height.veg","LDMC","Leaf.area","Leaf.dry.mass",
+                                "Seed.dry.mass","Seed.number.per.plant","SLA","Woodiness")) %>%
+    ggplot( aes(x=var, y=est, color=metric)) +
+    geom_hline(yintercept = 0, linetype="dashed", color="gray") +
+    geom_point(position = position_dodge(width = 0.75)) +
+    geom_errorbar(aes(ymin=lwr, ymax=upr), width=0.5, position = position_dodge(width = 0.75)) +
+    labs(x="",y="Model-averaged coefficient estimates") +
+    coord_flip() +
+    theme_bw() +
+    theme(legend.position = "none") +
+    facet_grid(~ metric, scales = "free")
+  
+}
+
+##----------------------------------------####
+
+##--- 8. PREDICTIONS, FUTURE CLIMATE SCENARIOS ---####
+##--- 8.1 Prepare environmental data ---####
+# Get data for future climate scenarios
+fut_SSP126 <- stack('Future_climate/wc2.1_2.5m_bioc_MIROC6_ssp126_2081-2100.tif') 
+fut_SSP245 <- stack('Future_climate/wc2.1_2.5m_bioc_MRI-ESM2-0_ssp245_2081-2100.tif') 
+fut_SSP585 <- stack('Future_climate/wc2.1_2.5m_bioc_CanESM5_ssp585_2081-2100.tif') 
+names(fut_SSP126) <- {c('Annual Mean Temperature',
+                     'Mean Diurnal Range',
+                     'Isothermality',
+                     'Temperature Seasonality',
+                     'Max Temperature of Warmest Month',
+                     'Min Temperature of Coldest Month',
+                     'Temperature Annual Range',
+                     'Mean Temperature of Wettest Quarter',
+                     'Mean Temperature of Driest Quarter',
+                     'Mean Temperature of Warmest Quarter',
+                     'Mean Temperature of Coldest Quarter',
+                     'Annual Precipitation',
+                     'Precipitation of Wettest Month',
+                     'Precipitation of Driest Month',
+                     'Precipitation Seasonality.',
+                     'Precipitation of Wettest Quarter',
+                     'Precipitation of Driest Quarter',
+                     'Precipitation of Warmest Quarter',
+                     'Precipitation of Coldest Quarter')}
+names(fut_SSP245) <- {c('Annual Mean Temperature',
+                        'Mean Diurnal Range',
+                        'Isothermality',
+                        'Temperature Seasonality',
+                        'Max Temperature of Warmest Month',
+                        'Min Temperature of Coldest Month',
+                        'Temperature Annual Range',
+                        'Mean Temperature of Wettest Quarter',
+                        'Mean Temperature of Driest Quarter',
+                        'Mean Temperature of Warmest Quarter',
+                        'Mean Temperature of Coldest Quarter',
+                        'Annual Precipitation',
+                        'Precipitation of Wettest Month',
+                        'Precipitation of Driest Month',
+                        'Precipitation Seasonality.',
+                        'Precipitation of Wettest Quarter',
+                        'Precipitation of Driest Quarter',
+                        'Precipitation of Warmest Quarter',
+                        'Precipitation of Coldest Quarter')}
+names(fut_SSP585) <- {c('Annual Mean Temperature',
+                        'Mean Diurnal Range',
+                        'Isothermality',
+                        'Temperature Seasonality',
+                        'Max Temperature of Warmest Month',
+                        'Min Temperature of Coldest Month',
+                        'Temperature Annual Range',
+                        'Mean Temperature of Wettest Quarter',
+                        'Mean Temperature of Driest Quarter',
+                        'Mean Temperature of Warmest Quarter',
+                        'Mean Temperature of Coldest Quarter',
+                        'Annual Precipitation',
+                        'Precipitation of Wettest Month',
+                        'Precipitation of Driest Month',
+                        'Precipitation Seasonality.',
+                        'Precipitation of Wettest Quarter',
+                        'Precipitation of Driest Quarter',
+                        'Precipitation of Warmest Quarter',
+                        'Precipitation of Coldest Quarter')}
+
+# Due to the difference in resolution, we need an even larger buffer to not lose data than the original one
+norway_UTM_buff2 <- st_buffer(norway_UTM_buff, dist = 50000)
+
+# Start with cropping a little to make the process a little faster - OBS! The extent needs to be slightly bigger, otherwise
+# we get empty grid cells - this takes care of the extent at the same time:
+ext2 <- extent(st_transform(norway_UTM_buff2, crs=st_crs(fut_SSP126)))
+
+fut_SSP126 <- crop(fut_SSP126, ext2)
+fut_SSP245 <- crop(fut_SSP245, ext2)
+fut_SSP585 <- crop(fut_SSP585, ext2)
+
+# Transform the CRS to match that of env_rast, crop and rescale/resample:
+fut_SSP126.2 <- resample(mask(projectRaster(fut_SSP126, crs = crs(env_raster)),
+                              norway_UTM_buff2),
+                         env_raster, method="bilinear")
+fut_SSP245.2 <- resample(mask(projectRaster(fut_SSP245, crs = crs(env_raster)),
+                              norway_UTM_buff2),
+                         env_raster, method="bilinear")
+fut_SSP585.2 <- resample(mask(projectRaster(fut_SSP585, crs = crs(env_raster)),
+                              norway_UTM_buff2),
+                         env_raster, method="bilinear")
+
+# Combine the relevant data for predictions in new rasters - only the bioclimatic variables are changing, for the remaining data,
+# we'll be keeping the same values as were used in the original models:
+fut1 <- addLayer(dropLayer(fut_SSP126.2, c(1:9,11,13:14,16:19)), env_raster[[c(4,6,14,16)]])
+fut2 <- addLayer(dropLayer(fut_SSP245.2, c(1:9,11,13:14,16:19)), env_raster[[c(4,6,14,16)]])
+fut3 <- addLayer(dropLayer(fut_SSP585.2, c(1:9,11,13:14,16:19)), env_raster[[c(4,6,14,16)]])
+
+# Subset the data to only include the pixels for which we have spatial eigenvectors (otherwise 'predict()' fails)
+# Get the right pixelnumbers
+pxl <- tibble::rownames_to_column(as.data.frame(raster_data))
+pxl <- pxl[complete.cases(pxl), ]  # Incomplete cases in bioclim and topography
+pxl <- pxl$rowname
+
+## OBS! The temperature data has another unit than the original data! (degree C vs. degree C *10) - multiply the data here
+## by 10 to make it fit
+fut1.df <- as.data.frame(fut1)[rownames(as.data.frame(fut1)) %in% pxl,]
+      fut1.df$Mean.Temperature.of.Warmest.Quarter <- fut1.df$Mean.Temperature.of.Warmest.Quarter *10
+fut2.df <- as.data.frame(fut2)[rownames(as.data.frame(fut2)) %in% pxl,]
+      fut2.df$Mean.Temperature.of.Warmest.Quarter <- fut2.df$Mean.Temperature.of.Warmest.Quarter *10
+fut3.df <- as.data.frame(fut3)[rownames(as.data.frame(fut3)) %in% pxl,]
+      fut3.df$Mean.Temperature.of.Warmest.Quarter <- fut3.df$Mean.Temperature.of.Warmest.Quarter *10
+
+##--- 8.2 Make predictions for the individual traits ---####
+# Gather in one dataframes:
+pred_fut1 <- data.frame(Pixelnr = as.integer(pxl),
+                       Height.gen = predict(m.Height.gen.avg, newdata=fut1.df, full=T),
+                       Height.veg = predict(m.Height.veg.avg, newdata=fut1.df, full=T),
+                       LDMC = predict(m.LDMC.avg, newdata=fut1.df, full=T),
+                       Leaf.area = predict(m.Leaf.area.avg, newdata=fut1.df, full=T),
+                       Leaf.dry.mass = predict(m.Leaf.dry.mass.avg, newdata=fut1.df, full=T),
+                       Seed.dry.mass = predict(m.Seed.dry.mass.avg, newdata=fut1.df, full=T),
+                       Seed.number.per.plant = predict(m.Seed.number.per.plant.avg, newdata=fut1.df, full=T),
+                       SLA = predict(m.SLA.avg, newdata=fut1.df, full=T),
+                       Woodiness = predict(m.Woodiness.avg, newdata=fut1.df, full=T))
+
+pred_fut2 <- data.frame(Pixelnr = as.integer(pxl),
+                        Height.gen = predict(m.Height.gen.avg, newdata=fut2.df, full=T),
+                        Height.veg = predict(m.Height.veg.avg, newdata=fut2.df, full=T),
+                        LDMC = predict(m.LDMC.avg, newdata=fut2.df, full=T),
+                        Leaf.area = predict(m.Leaf.area.avg, newdata=fut2.df, full=T),
+                        Leaf.dry.mass = predict(m.Leaf.dry.mass.avg, newdata=fut2.df, full=T),
+                        Seed.dry.mass = predict(m.Seed.dry.mass.avg, newdata=fut2.df, full=T),
+                        Seed.number.per.plant = predict(m.Seed.number.per.plant.avg, newdata=fut2.df, full=T),
+                        SLA = predict(m.SLA.avg, newdata=fut2.df, full=T),
+                        Woodiness = predict(m.Woodiness.avg, newdata=fut2.df, full=T))
+
+pred_fut3 <- data.frame(Pixelnr = as.integer(pxl),
+                        Height.gen = predict(m.Height.gen.avg, newdata=fut3.df, full=T),
+                        Height.veg = predict(m.Height.veg.avg, newdata=fut3.df, full=T),
+                        LDMC = predict(m.LDMC.avg, newdata=fut3.df, full=T),
+                        Leaf.area = predict(m.Leaf.area.avg, newdata=fut3.df, full=T),
+                        Leaf.dry.mass = predict(m.Leaf.dry.mass.avg, newdata=fut3.df, full=T),
+                        Seed.dry.mass = predict(m.Seed.dry.mass.avg, newdata=fut3.df, full=T),
+                        Seed.number.per.plant = predict(m.Seed.number.per.plant.avg, newdata=fut3.df, full=T),
+                        SLA = predict(m.SLA.avg, newdata=fut3.df, full=T),
+                        Woodiness = predict(m.Woodiness.avg, newdata=fut3.df, full=T))
+
+# Collect in full dataframe and rasterize
+pred_fut1 <- left_join(data.frame(Pixelnr = FD.cc.df[,c("Pixelnr")]), pred_fut1, by="Pixelnr")
+pred_fut2 <- left_join(data.frame(Pixelnr = FD.cc.df[,c("Pixelnr")]), pred_fut2, by="Pixelnr")
+pred_fut3 <- left_join(data.frame(Pixelnr = FD.cc.df[,c("Pixelnr")]), pred_fut3, by="Pixelnr")
+
+pred_fut1_raster <- dropLayer(pa20k_stack, c(10:1248))
+{pred_fut1_raster <- setValues(pred_fut1_raster, pred_fut1$Height.gen, layer=1)
+  pred_fut1_raster <- setValues(pred_fut1_raster, pred_fut1$Height.veg, layer=2)
+  pred_fut1_raster <- setValues(pred_fut1_raster, pred_fut1$LDMC, layer=3)
+  pred_fut1_raster <- setValues(pred_fut1_raster, pred_fut1$Leaf.area, layer=4)
+  pred_fut1_raster <- setValues(pred_fut1_raster, pred_fut1$Leaf.dry.mass, layer=5)
+  pred_fut1_raster <- setValues(pred_fut1_raster, pred_fut1$Seed.dry.mass, layer=6)
+  pred_fut1_raster <- setValues(pred_fut1_raster, pred_fut1$Seed.number.per.plant, layer=7)
+  pred_fut1_raster <- setValues(pred_fut1_raster, pred_fut1$SLA, layer=8)
+  pred_fut1_raster <- setValues(pred_fut1_raster, pred_fut1$Woodiness, layer=9)
+  names(pred_fut1_raster) <- c("Height.gen","Height.veg","LDMC","Leaf.area","Leaf.dry.mass",
+                               "Seed.dry.mass","Seed.number.per.plant","SLA","Woodiness" )}
+pred_fut2_raster <- dropLayer(pa20k_stack, c(10:1248))
+{pred_fut2_raster <- setValues(pred_fut2_raster, pred_fut2$Height.gen, layer=1)
+  pred_fut2_raster <- setValues(pred_fut2_raster, pred_fut2$Height.veg, layer=2)
+  pred_fut2_raster <- setValues(pred_fut2_raster, pred_fut2$LDMC, layer=3)
+  pred_fut2_raster <- setValues(pred_fut2_raster, pred_fut2$Leaf.area, layer=4)
+  pred_fut2_raster <- setValues(pred_fut2_raster, pred_fut2$Leaf.dry.mass, layer=5)
+  pred_fut2_raster <- setValues(pred_fut2_raster, pred_fut2$Seed.dry.mass, layer=6)
+  pred_fut2_raster <- setValues(pred_fut2_raster, pred_fut2$Seed.number.per.plant, layer=7)
+  pred_fut2_raster <- setValues(pred_fut2_raster, pred_fut2$SLA, layer=8)
+  pred_fut2_raster <- setValues(pred_fut2_raster, pred_fut2$Woodiness, layer=9)
+  names(pred_fut2_raster) <- c("Height.gen","Height.veg","LDMC","Leaf.area","Leaf.dry.mass",
+                               "Seed.dry.mass","Seed.number.per.plant","SLA","Woodiness" )}
+pred_fut3_raster <- dropLayer(pa20k_stack, c(10:1248))
+{pred_fut3_raster <- setValues(pred_fut3_raster, pred_fut3$Height.gen, layer=1)
+  pred_fut3_raster <- setValues(pred_fut3_raster, pred_fut3$Height.veg, layer=2)
+  pred_fut3_raster <- setValues(pred_fut3_raster, pred_fut3$LDMC, layer=3)
+  pred_fut3_raster <- setValues(pred_fut3_raster, pred_fut3$Leaf.area, layer=4)
+  pred_fut3_raster <- setValues(pred_fut3_raster, pred_fut3$Leaf.dry.mass, layer=5)
+  pred_fut3_raster <- setValues(pred_fut3_raster, pred_fut3$Seed.dry.mass, layer=6)
+  pred_fut3_raster <- setValues(pred_fut3_raster, pred_fut3$Seed.number.per.plant, layer=7)
+  pred_fut3_raster <- setValues(pred_fut3_raster, pred_fut3$SLA, layer=8)
+  pred_fut3_raster <- setValues(pred_fut3_raster, pred_fut3$Woodiness, layer=9)
+  names(pred_fut3_raster) <- c("Height.gen","Height.veg","LDMC","Leaf.area","Leaf.dry.mass",
+                               "Seed.dry.mass","Seed.number.per.plant","SLA","Woodiness" )}
+
+##--- 8.3 Calculate the difference between present day and the future scenarios ---####
+diff_fut1 <- pred_fut1_raster - CWM_raster.cc[[c("Height.gen","Height.veg","LDMC","Leaf.area","Leaf.dry.mass",
+                                                 "Seed.dry.mass","Seed.number.per.plant","SLA","Woodiness")]]
+diff_fut2 <- pred_fut2_raster - CWM_raster.cc[[c("Height.gen","Height.veg","LDMC","Leaf.area","Leaf.dry.mass",
+                                                 "Seed.dry.mass","Seed.number.per.plant","SLA","Woodiness")]]
+diff_fut3 <- pred_fut3_raster - CWM_raster.cc[[c("Height.gen","Height.veg","LDMC","Leaf.area","Leaf.dry.mass",
+                                                 "Seed.dry.mass","Seed.number.per.plant","SLA","Woodiness")]]
+
+##--- 8.4 Plots with a diverging colour gradient ---####
+# The original function was taken from https://stackoverflow.com/questions/33750235/plotting-a-raster-with-the-color-ramp-diverging-around-zero
+# devtools::source_gist('306e4b7e69c87b1826db')
+# I have added an extra 'rev()' to reverse the  RdBu color gradient (the negative values were originally red and positive ones
+# were blue - I wanted it reversed). OBS! For now, it only works on the named palettes from 'brewer.pal'
+library(gridExtra, lib.loc = "/home/ahomez/t/tanjakp/export/library")
+Mydiverge0 <- function(p, ramp) {
+  # p: a trellis object resulting from rasterVis::levelplot
+  # ramp: the name of an RColorBrewer palette (as character), a character 
+  #       vector of colour names to interpolate, or a colorRampPalette.
+  require(RColorBrewer)
+  require(rasterVis)
+  if(length(ramp)==1 && is.character(ramp) && ramp %in% 
+     row.names(brewer.pal.info)) {
+    ramp <- suppressWarnings(colorRampPalette(rev(brewer.pal(11, ramp))))         # Here I added the 'rev()' function to reverse the palette
+  } else if(length(ramp) > 1 && is.character(ramp) && all(ramp %in% colors())) {
+    ramp <- colorRampPalette(ramp)      
+  } else if(!is.function(ramp)) 
+    stop('ramp should be either the name of a RColorBrewer palette, ', 
+         'a vector of colours to be interpolated, or a colorRampPalette.')
+  rng <- range(p$legend[[1]]$args$key$at)
+  s <- seq(-max(abs(rng)), max(abs(rng)), len=1001)
+  i <- findInterval(rng[which.min(abs(rng))], s)
+  zlim <- switch(which.min(abs(rng)), `1`=i:(1000+1), `2`=1:(i+1))
+  p$legend[[1]]$args$key$at <- s[zlim]
+  p[[grep('^legend', names(p))]][[1]]$args$key$col <- ramp(1000)[zlim[-length(zlim)]]
+  p$panel.args.common$col.regions <- ramp(1000)[zlim[-length(zlim)]]
+  p
+}
+
+# As the function works through rasterVis and trellis/level plots, and combine them manually through grid.arrange():
+# SSP126
+{grid.arrange(Mydiverge0(levelplot(diff_fut1[["Height.gen"]],
+                                  main="Height.gen",
+                                  margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                  par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+               Mydiverge0(levelplot(diff_fut1[["Height.veg"]],
+                                    main="Height.veg",
+                                    margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                    par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+               Mydiverge0(levelplot(diff_fut1[["LDMC"]],
+                                    main="LDMC",
+                                    margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                    par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+               Mydiverge0(levelplot(diff_fut1[["Leaf.area"]],
+                                    main="Leaf.area",
+                                    margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                    par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+               Mydiverge0(levelplot(diff_fut1[["Leaf.dry.mass"]],
+                                    main="Leaf.dry.mass",
+                                    margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                    par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+               Mydiverge0(levelplot(diff_fut1[["Seed.dry.mass"]],
+                                    main="Seed.dry.mass",
+                                    margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                    par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+               Mydiverge0(levelplot(diff_fut1[["Seed.number.per.plant"]],
+                                    main="Seed.number.per.plant",
+                                    margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                    par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+               Mydiverge0(levelplot(diff_fut1[["SLA"]],
+                                    main="SLA",
+                                    margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                    par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+               Mydiverge0(levelplot(diff_fut1[["Woodiness"]],
+                                    main="Woodiness",
+                                    margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                    par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+               ncol=3, nrow=3)}
+# SSP245
+{grid.arrange(Mydiverge0(levelplot(diff_fut2[["Height.gen"]],
+                                   main="Height.gen",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut2[["Height.veg"]],
+                                   main="Height.veg",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut2[["LDMC"]],
+                                   main="LDMC",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut2[["Leaf.area"]],
+                                   main="Leaf.area",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut2[["Leaf.dry.mass"]],
+                                   main="Leaf.dry.mass",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut2[["Seed.dry.mass"]],
+                                   main="Seed.dry.mass",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut2[["Seed.number.per.plant"]],
+                                   main="Seed.number.per.plant",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut2[["SLA"]],
+                                   main="SLA",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut2[["Woodiness"]],
+                                   main="Woodiness",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              ncol=3, nrow=3)}
+# SSP585
+{grid.arrange(Mydiverge0(levelplot(diff_fut3[["Height.gen"]],
+                                   main="Height.gen",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut3[["Height.veg"]],
+                                   main="Height.veg",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut3[["LDMC"]],
+                                   main="LDMC",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut3[["Leaf.area"]],
+                                   main="Leaf.area",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut3[["Leaf.dry.mass"]],
+                                   main="Leaf.dry.mass",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut3[["Seed.dry.mass"]],
+                                   main="Seed.dry.mass",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut3[["Seed.number.per.plant"]],
+                                   main="Seed.number.per.plant",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut3[["SLA"]],
+                                   main="SLA",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut3[["Woodiness"]],
+                                   main="Woodiness",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              ncol=3, nrow=3)}
+
+
+##--- 8.5 Make predictions for FD metrics ---####
+# Gather in one dataframes:
+pred_fut1.FD <- data.frame(Pixelnr = as.integer(pxl),
+                           nbsp = predict(m.nbsp.avg, newdata=fut1.df, full=T),
+                           FRic = predict(m.FRic.avg, newdata=fut1.df, full=T),
+                           FEve = predict(m.FEve.avg, newdata=fut1.df, full=T),
+                           FDiv = predict(m.FDiv.avg, newdata=fut1.df, full=T),
+                           FDis = predict(m.FDis.avg, newdata=fut1.df, full=T))
+
+pred_fut2.FD <- data.frame(Pixelnr = as.integer(pxl),
+                           nbsp = predict(m.nbsp.avg, newdata=fut2.df, full=T),
+                           FRic = predict(m.FRic.avg, newdata=fut2.df, full=T),
+                           FEve = predict(m.FEve.avg, newdata=fut2.df, full=T),
+                           FDiv = predict(m.FDiv.avg, newdata=fut2.df, full=T),
+                           FDis = predict(m.FDis.avg, newdata=fut2.df, full=T))
+
+pred_fut3.FD <- data.frame(Pixelnr = as.integer(pxl),
+                           nbsp = predict(m.nbsp.avg, newdata=fut3.df, full=T),
+                           FRic = predict(m.FRic.avg, newdata=fut3.df, full=T),
+                           FEve = predict(m.FEve.avg, newdata=fut3.df, full=T),
+                           FDiv = predict(m.FDiv.avg, newdata=fut3.df, full=T),
+                           FDis = predict(m.FDis.avg, newdata=fut3.df, full=T))
+
+# Collect in full dataframe and rasterize
+pred_fut1.FD <- left_join(data.frame(Pixelnr = FD.cc.df[,c("Pixelnr")]), pred_fut1.FD, by="Pixelnr")
+pred_fut2.FD <- left_join(data.frame(Pixelnr = FD.cc.df[,c("Pixelnr")]), pred_fut2.FD, by="Pixelnr")
+pred_fut3.FD <- left_join(data.frame(Pixelnr = FD.cc.df[,c("Pixelnr")]), pred_fut3.FD, by="Pixelnr")
+
+pred_fut1_raster.FD <- dropLayer(pa20k_stack, c(6:1248))
+{pred_fut1_raster.FD <- setValues(pred_fut1_raster.FD, pred_fut1.FD$nbsp, layer=1)
+  pred_fut1_raster.FD <- setValues(pred_fut1_raster.FD, pred_fut1.FD$FRic, layer=2)
+  pred_fut1_raster.FD <- setValues(pred_fut1_raster.FD, pred_fut1.FD$FEve, layer=3)
+  pred_fut1_raster.FD <- setValues(pred_fut1_raster.FD, pred_fut1.FD$FDiv, layer=4)
+  pred_fut1_raster.FD <- setValues(pred_fut1_raster.FD, pred_fut1.FD$FDis, layer=5)
+  names(pred_fut1_raster.FD) <- c("nbsp","FRic","FEve","FDiv","FDis")}
+pred_fut2_raster.FD <- dropLayer(pa20k_stack, c(6:1248))
+{pred_fut2_raster.FD <- setValues(pred_fut2_raster.FD, pred_fut2.FD$nbsp, layer=1)
+  pred_fut2_raster.FD <- setValues(pred_fut2_raster.FD, pred_fut2.FD$FRic, layer=2)
+  pred_fut2_raster.FD <- setValues(pred_fut2_raster.FD, pred_fut2.FD$FEve, layer=3)
+  pred_fut2_raster.FD <- setValues(pred_fut2_raster.FD, pred_fut2.FD$FDiv, layer=4)
+  pred_fut2_raster.FD <- setValues(pred_fut2_raster.FD, pred_fut2.FD$FDis, layer=5)
+  names(pred_fut2_raster.FD) <- c("nbsp","FRic","FEve","FDiv","FDis")}
+pred_fut3_raster.FD <- dropLayer(pa20k_stack, c(6:1248))
+{pred_fut3_raster.FD <- setValues(pred_fut3_raster.FD, pred_fut3.FD$nbsp, layer=1)
+  pred_fut3_raster.FD <- setValues(pred_fut3_raster.FD, pred_fut3.FD$FRic, layer=2)
+  pred_fut3_raster.FD <- setValues(pred_fut3_raster.FD, pred_fut3.FD$FEve, layer=3)
+  pred_fut3_raster.FD <- setValues(pred_fut3_raster.FD, pred_fut3.FD$FDiv, layer=4)
+  pred_fut3_raster.FD <- setValues(pred_fut3_raster.FD, pred_fut3.FD$FDis, layer=5)
+  names(pred_fut3_raster.FD) <- c("nbsp","FRic","FEve","FDiv","FDis")}
+
+##--- 8.6 Calculate the difference between present day and the future scenarios ---####
+# OBS! The nbsp-model predicts a proportional species richness - we this need to add a layer of tat to the raster
+# to compare the right numbers:
+CWM_raster.cc$nbsp.prop <- CWM_raster.cc$nbsp/1232
+
+diff_fut1.FD <- pred_fut1_raster.FD - CWM_raster.cc[[c("nbsp.prop","FRic","FEve","FDiv","FDis")]]
+diff_fut2.FD <- pred_fut2_raster.FD - CWM_raster.cc[[c("nbsp.prop","FRic","FEve","FDiv","FDis")]]
+diff_fut3.FD <- pred_fut3_raster.FD - CWM_raster.cc[[c("nbsp.prop","FRic","FEve","FDiv","FDis")]]
+
+##--- 8.7 Plots with a diverging colour gradient ---####
+# As the function works through rasterVis and trellis/level plots, and combine them manually through grid.arrange():
+# SSP126
+{grid.arrange(Mydiverge0(levelplot(diff_fut1.FD[["nbsp"]],
+                                   main="nbsp",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut1.FD[["FRic"]],
+                                   main="FRic",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut1.FD[["FEve"]],
+                                   main="FEve",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut1.FD[["FDiv"]],
+                                   main="FDiv",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut1.FD[["FDis"]],
+                                   main="FDis",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              ncol=3, nrow=2)}
+# SSP245
+{grid.arrange(Mydiverge0(levelplot(diff_fut2.FD[["nbsp"]],
+                                   main="nbsp",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut2.FD[["FRic"]],
+                                   main="FRic",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut2.FD[["FEve"]],
+                                   main="FEve",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut2.FD[["FDiv"]],
+                                   main="FDiv",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut2.FD[["FDis"]],
+                                   main="FDis",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              ncol=3, nrow=2)}
+# SSP585
+{grid.arrange(Mydiverge0(levelplot(diff_fut3.FD[["nbsp"]],
+                                   main="nbsp",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut3.FD[["FRic"]],
+                                   main="FRic",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut3.FD[["FEve"]],
+                                   main="FEve",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut3.FD[["FDiv"]],
+                                   main="FDiv",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              Mydiverge0(levelplot(diff_fut3.FD[["FDis"]],
+                                   main="FDis",
+                                   margin=FALSE, xlab=NULL, ylab=NULL, scales=list(draw=FALSE),
+                                   par.settings = list(axis.line = list(col = "transparent"))), ramp='RdBu'),
+              ncol=3, nrow=2)}
+
 
 
